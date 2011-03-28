@@ -317,6 +317,57 @@
          [(_ type expr clause ...) 
           (syntax->list #'(clause ...))])))
 
+(define-for-syntax (signal-typecase-syntax-error stx)
+  (syntax-case stx ()
+    [(_ type expr clause ...)
+     (for-each (lambda (clause)
+                 (syntax-case clause (else)
+                   [[variant (id ...) ans]
+                    (identifier? #'variant)
+                    'ok]
+                   [[(variant args ...) (id ...) ans]
+                    (identifier? #'variant)
+                    'ok]
+                   [[else ans] 'ok]
+                   [[var . rest]
+                    (not (identifier? #'var))
+                    (raise-syntax-error
+                     #f
+                     "expected an identifier from a define-type"
+                     stx
+                     #'var)]
+                   [[var ids . rest]
+                    (syntax-case #'ids ()
+                      [(x ...) (andmap identifier? (syntax->list #'(x ...))) #f]
+                      [else #t])
+                    (raise-syntax-error
+                     #f
+                     (format "second piece of the ~a clause must be a sequence of identifiers"
+                             (syntax-e #'var))
+                     stx
+                     clause)]
+                   [[var ids ans1 ans2 . ans]
+                    (raise-syntax-error
+                     #f
+                     "clause does not contain a single result expression"
+                     stx
+                     clause)]
+                   [[variant (id ...) ans ...]
+                    (andmap identifier? (syntax->list #'(id ...)))
+                    (raise-syntax-error
+                     #f
+                     "clause does not contain a single result expression"
+                     stx
+                     clause)]
+                   [else (raise-syntax-error
+                          #f
+                          "ill-formed clause"
+                          stx
+                          clause)]))
+               (syntax->list #'(clause ...)))]
+    [else
+     (raise-syntax-error #f "ill-formed type-case" stx)]))
+
 (define-syntax type-case:
   (check-top
    (lambda (stx)
@@ -350,32 +401,8 @@
             (type-case type expr 
               [variant (id ...) (#%expression ans)] ...
               [else (#%expression else-ans)])))]
-       [(_ type expr clause ...)
-        (for-each (lambda (clause)
-                    (syntax-case clause (else)
-                      [[variant (id ...) ans] 'ok]
-                      [[else ans] 'ok]
-                      [[else ans ...]
-                       (raise-syntax-error
-                        #f
-                        "clause does not contain a single result expression"
-                        stx
-                        clause)]
-                      [[variant (id ...) ans ...]
-                       (andmap identifier? (syntax->list #'(id ...)))
-                       (raise-syntax-error
-                        #f
-                        "clause does not contain a single result expression"
-                        stx
-                        clause)]
-                      [else (raise-syntax-error
-                             #f
-                             "ill-formed clause"
-                             stx
-                             clause)]))
-                  (syntax->list #'(clause ...)))]
-       [(_ . rest)
-        (syntax/loc stx (type-case . rest))]))))
+       [_
+        (signal-typecase-syntax-error stx)]))))
 
 
 (define-syntax cond:
@@ -885,6 +912,8 @@
                                  env)])
                (unify! #'else-ans t (typecheck #'else-ans env))
                t)]
+            [(type-case: . rest)
+             (signal-typecase-syntax-error expr)]
             [(quote: sym)
              (make-sym expr)]
             [(try expr1 (lambda: () expr2))
