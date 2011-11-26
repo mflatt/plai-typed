@@ -41,7 +41,7 @@
          
          box unbox set-box!
          
-         make-vector vector-ref vector-set!
+         make-vector vector-ref vector-set! vector-length
          
          (rename-out [values: values])
 
@@ -1171,6 +1171,13 @@
                                                               (make-num #f)
                                                               a)
                                                         (make-vd #f)))))
+                     (cons #'vector-length (let ([a (gen-tvar #f)])
+                                             (make-poly
+                                              #f
+                                              a
+                                              (make-arrow #f
+                                                          (list (make-vectorof #f a))
+                                                          (make-num #f)))))
 
                      (cons #'string-append (make-arrow #f 
                                                        (list (make-str #f)
@@ -1228,7 +1235,7 @@
     [(_ . body)
      (let ([expanded-body (local-expand #'body 'top-level null)])
        (unless tl-env
-         (let-values ([(ts e d vars tl-types) (do-original-typecheck (syntax->list orig-body))])
+         (let-values ([(ts e d vars tl-types) (do-original-typecheck (syntax->list (or orig-body #'())))])
            (set! tl-datatypes d)
            (set! tl-env e)
            (set! tl-variants vars)))

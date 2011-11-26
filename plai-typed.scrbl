@@ -207,6 +207,7 @@ Symbol primitive.}
 @defthing[make-vector (number 'a -> (vectorof 'a))]
 @defthing[vector-ref ((vectorof 'a) number -> 'a)]
 @defthing[vector-set! ((vectorof 'a) number 'a -> void)]
+@defthing[vector-length ((vectorof 'a) -> number)]
 )]{Vector primitives.}
 
 
