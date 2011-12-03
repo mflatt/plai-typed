@@ -6,6 +6,7 @@
                   test
                   test/exn
                   error)
+         racket/trace
          (for-syntax scheme/list
                      "types.ss"))
 
@@ -19,7 +20,8 @@
                      [if: if]
                      [or: or]
                      [and: and]
-                     [quote: quote])
+                     [quote: quote]
+                     [trace: trace])
          #%app #%datum #%top 
          (rename-out [module-begin #%module-begin]
                      [top-interaction #%top-interaction])
@@ -456,6 +458,30 @@
    (syntax-rules ()
      [(_ arg ...) (or arg ...)])))
 
+(define-syntax trace:
+  (check-top
+   (lambda (stx)
+     (unless (eq? (syntax-local-context) 'module)
+       (raise-syntax-error #f "allowed only module top level" stx))
+     (syntax-case stx ()
+       [(_ id ...)
+        (let ([ids (syntax->list #'(id ...))])
+          (for-each (lambda (id)
+                      (unless (identifier? id)
+                        (raise-syntax-error 'trace
+                                            "expected an identifier"
+                                            id))
+                      (let ([b (identifier-binding id)])
+                        (when b
+                          (let-values ([(base name) (module-path-index-split (car b))])
+                            (when (or base name)
+                              (printf "~s\n" (list base name))
+                              (raise-syntax-error 'trace
+                                                  "not a defined name in this module"
+                                                  id))))))
+                    ids)
+          #'(trace id ...))]))))
+
 ;; ----------------------------------------
 
 (define-for-syntax (mk stx . l)
@@ -765,7 +791,7 @@
         (let typecheck ([expr tl][env env])
           (syntax-case expr (: define-type: define: define-values:
                                lambda: begin: local: begin:
-                               cond: if: or: and:
+                               cond: if: or: and: trace:
                                type-case: quote:
                                list values: try)
             [(define-type: id [variant (field-id : field-type) ...] ...)
@@ -875,6 +901,12 @@
                            (unify! e b (typecheck e env)))
                          (syntax->list #'(e ...)))
                b)]
+            [(trace: id ...)
+             (let ([ids (syntax->list #'(id ...))])
+               (for-each (lambda (id)
+                           (unify! id (gen-tvar id #t) (typecheck id env)))
+                         ids)
+               (make-tupleof expr null))]
             [(type-case: type val [variant (id ...) ans] ...)
              (let ([type (parse-mono-type #'type)]
                    [res-type (gen-tvar expr)])

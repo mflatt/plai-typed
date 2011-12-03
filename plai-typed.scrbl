@@ -71,6 +71,13 @@ Define a type (when @scheme[tyid/abs] is @scheme[id]) or type
 constructor (when @scheme[tyid/abs] has the form @scheme[(id 'id
 ...)]) with its variants.}
 
+@defform[(trace id ...)]{
+
+Traces subsequent calls---showing arguments and results---for
+functions bound to the @racket[id]s.  This form can be used only in a
+module top level, and only for tracing functions defined within the
+module.}
+
 @; ----------------------------------------
 
 @section{Expressions}

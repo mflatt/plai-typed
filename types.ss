@@ -18,6 +18,7 @@
 (define-struct type ([src #:mutable]))
 
 (define-struct (tvar type) ([rep #:mutable] timestamp) #:transparent)
+(define-struct (arrow-tvar tvar) ()) ; must unify with arrow
 (define-struct (bool type) ())
 (define-struct (num type) ())
 (define-struct (sym type) ())
@@ -73,30 +74,32 @@
 
 (define current-timestamp 0)
 
-(define (gen-tvar src)
+(define (gen-tvar src [arrow? #f])
   (begin
     (set! current-timestamp (add1 current-timestamp))
-    (make-tvar src #f current-timestamp)))
+    ((if arrow? make-arrow-tvar make-tvar) src #f current-timestamp)))
 
 (define ((type->datum tmap) t)
   (cond
    [(tvar? t)
     (if (tvar-rep t)
         ((type->datum tmap) (tvar-rep t))
-        (let ([a (hash-ref tmap t #f)])
-          (if a
-              a
-              (let ([a `',(string->symbol
-                           (format "~a~a"
-                                   (if (eq? (type-src t) 'poly)
-                                       ""
-                                       "_")
-                                   (let ([n (hash-count tmap)])
-                                     (if (n . < . 26)
-                                         (integer->char (+ 97 n))
-                                         (format "a~a" n)))))])
-                (hash-set! tmap t a)
-                a))))]
+        (if (arrow-tvar? t)
+            '(... -> ...)
+            (let ([a (hash-ref tmap t #f)])
+              (if a
+                  a
+                  (let ([a `',(string->symbol
+                               (format "~a~a"
+                                       (if (eq? (type-src t) 'poly)
+                                           ""
+                                           "_")
+                                       (let ([n (hash-count tmap)])
+                                         (if (n . < . 26)
+                                             (integer->char (+ 97 n))
+                                             (format "a~a" n)))))])
+                    (hash-set! tmap t a)
+                    a)))))]
    [(num? t) 'number]
    [(bool? t) 'boolean]
    [(sym? t) 'symbol]
@@ -277,9 +280,10 @@
                   (if ((tvar-timestamp t) . > . ts)
                       ;; to let-bound polymorphism, we need
                       ;; only older vars
-                      (let ([t2 (make-tvar (type-src t)
-                                           #f
-                                           ts)])
+                      (let ([t2 ((if (arrow-tvar? t) make-arrow-tvar make-tvar)
+                                 (type-src t)
+                                 #f
+                                 ts)])
                         (set-tvar-rep! t t2)
                         t2)
                       t))]
@@ -308,7 +312,6 @@
                    (type-src t)
                    (datatype-id t)
                    (map (lambda (t) (clone t ts)) (datatype-args t)))]
-   [(tvar? t) t]
    [(poly? t) (error 'clone "shouldn't clone poly")]
    [else (error 'clone "unrecognized: ~e" t)]))
 
@@ -498,16 +501,20 @@
           (when (occurs? a b)
             (raise-typecheck-error expr a b "cycle"))
           (if (tvar? b)
-              (if (< (tvar-timestamp b) (tvar-timestamp a))
+              (if (or (< (tvar-timestamp b) (tvar-timestamp a))
+                      (arrow-tvar? b))
                   (begin
                     (set-tvar-rep! a b)
                     (add-srcs! b a))
                   (begin
                     (set-tvar-rep! b a)
                     (add-srcs! a b)))
-              (let ([b (clone b (tvar-timestamp a))])
-                (set-tvar-rep! a b)
-                (add-srcs! b a)))]
+              (if (and (arrow-tvar? a)
+                       (not (arrow? b)))
+                  (raise-typecheck-error expr a b "trace procedure")
+                  (let ([b (clone b (tvar-timestamp a))])
+                    (set-tvar-rep! a b)
+                    (add-srcs! b a))))]
          [(bool? a)
           (unless (bool? b)
             (raise-typecheck-error expr a b))]
