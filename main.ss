@@ -558,7 +558,7 @@
                          [(boxof: elem)
                           (make-boxof t (loop #'elem))]
                          [(vectorof: elem)
-                          (make-boxof t (loop #'elem))]
+                          (make-vectorof t (loop #'elem))]
                          [(a * more ...)
                           (let ([m (syntax->list #'(more ...))])
                             (let loop ([m m])
