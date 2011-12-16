@@ -43,7 +43,7 @@
          
          box unbox set-box!
          
-         make-vector vector-ref vector-set! vector-length
+         make-vector vector-ref vector-set! vector-length vector
          
          (rename-out [values: values])
 
@@ -656,6 +656,8 @@
                            (andmap loop (syntax->list #'(a ...)))]
                           [(list a ...)
                            (andmap loop (syntax->list #'(a ...)))]
+                          [(vector a ...)
+                           (andmap loop (syntax->list #'(a ...)))]
                           [empty #t]
                           [(cons a b)
                            (and (loop #'a) (loop #'b))]
@@ -793,7 +795,7 @@
                                lambda: begin: local: begin:
                                cond: if: or: and: trace:
                                type-case: quote:
-                               list values: try)
+                               list vector values: try)
             [(define-type: id [variant (field-id : field-type) ...] ...)
              ;; handled in initial env
              (void)]
@@ -961,6 +963,16 @@
             [list
              (raise-syntax-error #f
                                  "list constructor must be applied directly to arguments"
+                                 expr)]
+            [(vector arg ...)
+             (let ([t (gen-tvar expr)])
+               (for-each (lambda (arg)
+                           (unify! arg t (typecheck arg env)))
+                         (syntax->list #'(arg ...)))
+               (make-listof expr t))]
+            [vector
+             (raise-syntax-error #f
+                                 "vector constructor must be applied directly to arguments"
                                  expr)]
             [(values: arg ...)
              (make-tupleof expr

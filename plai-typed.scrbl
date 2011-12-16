@@ -132,6 +132,10 @@ Boolean combination. The @scheme[expr]s must have type @scheme[boolean].}
 
 Builds a list. All @scheme[elem]s must have the same type.}
 
+@defproc[(vector [elem 'a] ...) (vectorof 'a)]{
+
+Builds a vector. All @scheme[elem]s must have the same type.}
+
 
 @defproc[(values [elem 'a] ...) ('a * ...)]{
 
