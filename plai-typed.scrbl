@@ -258,6 +258,8 @@ S-expressions.}
 @defthing[vector-length ((vectorof 'a) -> number)]
 )]{Vector primitives.}
 
+@defthing[call/cc ((('a -> 'b) -> 'a) -> 'a)]{
+Continuation primitive.}
 
 @deftogether[(
 @defthing[test ('a 'a -> void)]

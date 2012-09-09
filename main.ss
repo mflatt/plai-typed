@@ -37,7 +37,7 @@
          cons list empty first rest empty? cons?
          map reverse map2 append
          + - = > < <= >= / * symbol=? string=? equal? eq? not
-         error try
+         error try call/cc
 
          string->symbol symbol->string
          string-append to-string
@@ -1168,6 +1168,21 @@
                      (cons #'print-only-errors (make-arrow #f 
                                                            (list (make-bool #f))
                                                            (make-vd #f)))
+                     (cons #'call/cc (let ([a (gen-tvar #f)]
+                                           [b (gen-tvar #f)])
+                                       (make-poly #f
+                                                  a
+                                                  (make-poly #f
+                                                             b
+                                                             (make-arrow #f
+                                                                         (list (make-arrow
+                                                                                #f
+                                                                                (list (make-arrow
+                                                                                       #f
+                                                                                       (list a)
+                                                                                       b))
+                                                                                a))
+                                                                         a)))))
                      (cons #'true (make-bool #f))
                      (cons #'false (make-bool #f))                       
                      (cons #'empty (let ([a (gen-tvar #f)])
