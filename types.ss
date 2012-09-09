@@ -47,7 +47,7 @@
         [(bool? type) #'boolean?]
         [(num? type) #'number?]
         [(sym? type) #'symbol?]
-        [(sexp? type) #'(letrec ([s-exp? (recursive-contract (or/c symbol? (listof s-exp?)))])
+        [(sexp? type) #'(letrec ([s-exp? (recursive-contract (or/c symbol? number? string? (listof s-exp?)))])
                           s-exp?)]
         [(void? type) #'void?]
         [(str? type) #'string?]

@@ -130,7 +130,7 @@ Conditionals. Each @scheme[test-expr]s must have type @scheme[boolean].}
 
 @defform[(set! id expr)]{
 
-Assignment. The result type is @racket[()].}
+Assignment.}
 
 @deftogether[(
 @defform[(and expr ...)]
@@ -212,22 +212,22 @@ Symbol primitive.}
 )]{String primitives.}
 
 @deftogether[(
-@defthing[s-exp-symbol? (s-expression -> boolean)]
+@defthing[symbol? (s-expression -> boolean)]
 @defthing[s-exp->symbol (s-expression -> symbol)]
 @defthing[symbol->s-exp (symbol -> s-expression)]
-@defthing[s-exp-number? (s-expression -> boolean)]
+@defthing[number? (s-expression -> boolean)]
 @defthing[s-exp->number (s-expression -> number)]
 @defthing[number->s-exp (number -> s-expression)]
-@defthing[s-exp-string? (s-expression -> boolean)]
+@defthing[string? (s-expression -> boolean)]
 @defthing[s-exp->string (s-expression -> string)]
 @defthing[string->s-exp (string -> s-expression)]
-@defthing[s-exp-list? (s-expression -> boolean)]
+@defthing[list? (s-expression -> boolean)]
 @defthing[s-exp->list (s-expression -> (listof s-expression))]
 @defthing[list->s-exp ((listof s-expression) -> s-expression)]
 )]{
 Coercion primitives to and from S-expressions.
 
-The @racket[s-exp-symbol?] function determines whether an S-expression
+The @racket[symbol?] function determines whether an S-expression
 is a symbol; in that case, @racket[s-exp->symbol] acts the identity
 function to produce the symbol, otherwise an exception is raised. The
 @racket[symbol->s-exp] function similarly acts as the identity
@@ -262,8 +262,9 @@ S-expressions.}
 @deftogether[(
 @defthing[test ('a 'a -> void)]
 @defthing[test/exn ((-> 'a) string -> void)]
+@defthing[print-only-errors (boolean -> void)]
 )]{
-Test primitive forms that do not actually produce a void
+Test primitive forms that, in the case of @racket[test] and @racket[test/exn], do not actually produce a void
 value. Instead, they produce results suitable for automatic display
 through a top-level expression. The @scheme[void] type merely prevents your
 program from using the result.}
