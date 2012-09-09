@@ -827,7 +827,7 @@
     (values
      (map
       (lambda (tl)
-        (let typecheck ([expr tl][env env])
+        (let typecheck ([expr tl] [env env])
           (syntax-case expr (: define-type: define: define-values:
                                lambda: begin: local: begin:
                                cond: if: or: and: set!: trace:
@@ -941,7 +941,13 @@
                          (syntax->list #'(e ...)))
                b)]
             [(set!: id e)
-             (unify! #'id (typecheck #'id env) (typecheck #'e env))
+             (let ([t (lookup #'id env)])
+               (if (poly? t)
+                   (raise-syntax-error #f
+                                       "cannot mutate identifier with a polymorphic type"
+                                       expr
+                                       #'id)
+                   (unify! #'id t (typecheck #'e env))))
              (make-vd expr)]
             [(trace: id ...)
              (let ([ids (syntax->list #'(id ...))])

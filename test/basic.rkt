@@ -31,3 +31,6 @@
                                 0))))
               (y 2)
               7)))
+
+(local [(define x (lambda ((x : string)) x))]
+  (set! x (lambda (y) (string-append y y))))

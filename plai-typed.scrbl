@@ -349,6 +349,10 @@ a few small exceptions:
    call with an argument whose type is different than that for the
    current call) is allowed. Recursive types, however, are prohibited.}
 
+ @item{Variables are mutable when @racket[set!] is used, but
+  assignment via @racket[set!] is disallowed to a variable that has a
+  polymorphic type.}
+
  @item{Since all definitions are recursively bound, and since the
    right-hand side of a definition does not have to be a function, its
    possible to refer to a variable before it is defined. The type

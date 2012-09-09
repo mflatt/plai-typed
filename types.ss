@@ -8,7 +8,7 @@
          make-arrow make-listof make-boxof make-tupleof make-vectorof make-datatype
          to-contract
          create-defn
-         make-poly poly-instance at-source instantiate-constructor-at
+         make-poly poly? poly-instance at-source instantiate-constructor-at
          current-timestamp
          unify! unify-defn!
          let-based-poly
@@ -167,28 +167,31 @@
    [else t]))
 (define (extract-tvars pre-ts post-ts pre-ts2 post-ts2 t)
   (let ([tvars
-         (let loop ([t t])
-           (cond
-            [(tvar? t) 
-             (if (let ([ts (tvar-timestamp t)])
-                   (or (and (ts . > . pre-ts) (ts . <= . post-ts))
-                       (and (ts . > . pre-ts2) (ts . <= . post-ts2))))
-                 (list t)
-                 null)]
-            [(arrow? t)
-             (append (loop (arrow-result t))
-                     (apply append
-                            (map loop (arrow-args t))))]
-            [(listof? t) (loop (listof-element t))]
-            [(boxof? t) (loop (boxof-element t))]
-            [(vectorof? t) (loop (vectorof-element t))]
-            [(tupleof? t) (apply append
-                                 (map loop (tupleof-args t)))]
-            [(datatype? t) (apply append
-                                  (map loop (datatype-args t)))]
-            [(poly? t) (remq* (list (poly-tvar t))
-                              (loop (poly-type t)))]
-            [else null]))])
+         (let box-loop ([box-ok? #f] [t t])
+           (let loop ([t t])
+             (cond
+              [(tvar? t) 
+               (if (let ([ts (tvar-timestamp t)])
+                     (or (and (ts . > . pre-ts) (ts . <= . post-ts))
+                         (and (ts . > . pre-ts2) (ts . <= . post-ts2))))
+                   (list t)
+                   null)]
+              [(arrow? t)
+               (append ((lambda (t) (box-loop #t t)) (arrow-result t))
+                       (apply append
+                              (map (lambda (t) (box-loop #t t)) (arrow-args t))))]
+              [(listof? t) (loop (listof-element t))]
+              [(boxof? t) (if box-ok?
+                              (loop (boxof-element t))
+                              null)]
+              [(vectorof? t) (loop (vectorof-element t))]
+              [(tupleof? t) (apply append
+                                   (map loop (tupleof-args t)))]
+              [(datatype? t) (apply append
+                                    (map loop (datatype-args t)))]
+              [(poly? t) (remq* (list (poly-tvar t))
+                                (loop (poly-type t)))]
+              [else null])))])
     (if (null? tvars)
         null
         (let ([ht (make-hasheq)])
