@@ -121,6 +121,10 @@ Conditionals. Each @scheme[test-expr]s must have type @scheme[boolean].}
 
 @defform[(local [definition ...] expr)]{ Local binding.}
 
+@defform[(set! id expr)]{
+
+Assignment. The result type is @racket[()].}
+
 @deftogether[(
 @defform[(and expr ...)]
 @defform[(or expr ...)]
@@ -193,6 +197,7 @@ by @scheme[expr] and calls @scheme[handle-expr].}
 Symbol primitive.}
 
 @deftogether[(
+@defthing[string=? (string string -> boolean)]
 @defthing[string-append (string string -> string)]
 @defthing[to-string ('a -> string)]
 @defthing[string->symbol (string -> symbol)]

@@ -21,6 +21,7 @@
                      [or: or]
                      [and: and]
                      [quote: quote]
+                     [set!: set!]
                      [trace: trace])
          #%app #%datum #%top 
          (rename-out [module-begin #%module-begin]
@@ -34,7 +35,7 @@
          
          cons list empty first rest empty? cons?
          map reverse map2 append
-         + - = > < <= >= / * symbol=? equal? eq? not
+         + - = > < <= >= / * symbol=? string=? equal? eq? not
          error try
 
          string->symbol symbol->string
@@ -458,6 +459,18 @@
    (syntax-rules ()
      [(_ arg ...) (or arg ...)])))
 
+(define-syntax set!:
+  (check-top
+   (lambda (stx)
+     (syntax-case stx ()
+       [(_ id expr)
+        (if (identifier? #'id)
+            #'(set! id expr)
+            (raise-syntax-error #f
+                                "expected an identifier"
+                                stx
+                                #'id))]))))
+
 (define-syntax trace:
   (check-top
    (lambda (stx)
@@ -793,7 +806,7 @@
         (let typecheck ([expr tl][env env])
           (syntax-case expr (: define-type: define: define-values:
                                lambda: begin: local: begin:
-                               cond: if: or: and: trace:
+                               cond: if: or: and: set!: trace:
                                type-case: quote:
                                list vector values: try)
             [(define-type: id [variant (field-id : field-type) ...] ...)
@@ -903,6 +916,9 @@
                            (unify! e b (typecheck e env)))
                          (syntax->list #'(e ...)))
                b)]
+            [(set!: id e)
+             (unify! #'id (typecheck #'id env) (typecheck #'e env))
+             (make-tupleof expr null)]
             [(trace: id ...)
              (let ([ids (syntax->list #'(id ...))])
                (for-each (lambda (id)
@@ -1057,6 +1073,10 @@
                      (cons #'symbol=? (make-arrow #f 
                                                   (list (make-sym #f)
                                                         (make-sym #f))
+                                                  (make-bool #f)))
+                     (cons #'string=? (make-arrow #f 
+                                                  (list (make-str #f)
+                                                        (make-str #f))
                                                   (make-bool #f)))
                      (cons #'equal? (let ([a (gen-tvar #f)])
                                       (make-poly #f
