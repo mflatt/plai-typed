@@ -4,7 +4,7 @@
          (for-template scheme/contract
                        scheme/base))
 
-(provide gen-tvar make-bool make-num make-sym make-str make-vd
+(provide gen-tvar make-bool make-num make-sym make-str make-vd make-sexp
          make-arrow make-listof make-boxof make-tupleof make-vectorof make-datatype
          to-contract
          create-defn
@@ -22,6 +22,7 @@
 (define-struct (bool type) ())
 (define-struct (num type) ())
 (define-struct (sym type) ())
+(define-struct (sexp type) ())
 (define-struct (vd type) ())
 (define-struct (str type) ())
 (define-struct (arrow type) (args result) #:transparent)
@@ -46,6 +47,8 @@
         [(bool? type) #'boolean?]
         [(num? type) #'number?]
         [(sym? type) #'symbol?]
+        [(sexp? type) #'(letrec ([s-exp? (recursive-contract (or/c symbol? (listof s-exp?)))])
+                          s-exp?)]
         [(void? type) #'void?]
         [(str? type) #'string?]
         [(arrow? type)
@@ -104,6 +107,7 @@
    [(bool? t) 'boolean]
    [(sym? t) 'symbol]
    [(str? t) 'string]
+   [(sexp? t) 's-expression]
    [(vd? t) 'void]
    [(arrow? t) `(,@(map (type->datum tmap) (arrow-args t))
                  ->
@@ -290,6 +294,7 @@
    [(bool? t) (make-bool (type-src t))]
    [(num? t) (make-num (type-src t))]
    [(sym? t) (make-sym (type-src t))]
+   [(sexp? t) (make-sexp (type-src t))]
    [(str? t) (make-str (type-src t))]
    [(vd? t) (make-vd (type-src t))]
    [(arrow? t) (make-arrow
@@ -523,6 +528,9 @@
             (raise-typecheck-error expr a b))]
          [(sym? a)
           (unless (sym? b)
+            (raise-typecheck-error expr a b))]
+         [(sexp? a)
+          (unless (sexp? b)
             (raise-typecheck-error expr a b))]
          [(vd? a)
           (unless (vd? b)

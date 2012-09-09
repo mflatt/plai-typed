@@ -85,6 +85,8 @@ module.}
 An expression can be a literal constant that is a number (type
 @scheme[number]), a string (type @scheme[string]), a symbol (type
 @scheme[symbol]) written with @scheme[quote] or @litchar{'},
+an S-expression (type
+@scheme[s-expression]) also written with @scheme[quote] or @litchar{'},
 @scheme[#t] (type @scheme[boolean]), or @scheme[#f] (type
 @scheme[boolean]). An expression also can be a bound identifier (in
 which acse its type comes from its binding).
@@ -92,7 +94,12 @@ which acse its type comes from its binding).
 @defthing[true boolean]
 @defthing[false boolean]
 
-@defform[(quote symbol)]{A symbol.}
+@defform/subs[(quote s-exp)
+              ([s-exp id
+                      number
+                      string
+                      (s-exp ...)])]{
+A symbol (when the @racket[s-exp] is an identifier) or a literal S-expression.}
 
 @defform[(#%app expr expr ...)]{
 
@@ -205,6 +212,31 @@ Symbol primitive.}
 )]{String primitives.}
 
 @deftogether[(
+@defthing[s-exp-symbol? (s-expression -> boolean)]
+@defthing[s-exp->symbol (s-expression -> symbol)]
+@defthing[symbol->s-exp (symbol -> s-expression)]
+@defthing[s-exp-number? (s-expression -> boolean)]
+@defthing[s-exp->number (s-expression -> number)]
+@defthing[number->s-exp (number -> s-expression)]
+@defthing[s-exp-string? (s-expression -> boolean)]
+@defthing[s-exp->string (s-expression -> string)]
+@defthing[string->s-exp (string -> s-expression)]
+@defthing[s-exp-list? (s-expression -> boolean)]
+@defthing[s-exp->list (s-expression -> (listof s-expression))]
+@defthing[list->s-exp ((listof s-expression) -> s-expression)]
+)]{
+Coercion primitives to and from S-expressions.
+
+The @racket[s-exp-symbol?] function determines whether an S-expression
+is a symbol; in that case, @racket[s-exp->symbol] acts the identity
+function to produce the symbol, otherwise an exception is raised. The
+@racket[symbol->s-exp] function similarly acts as the identity
+function to view a symbol as an S-expression.
+
+The other functions work similarly for numbers, strings, and lists of
+S-expressions.}
+
+@deftogether[(
 @defthing[equal? ('a 'a -> boolean)]
 @defthing[eq? ('a 'a -> boolean)]
 )]{Comparison primitives.}
@@ -245,6 +277,7 @@ program from using the result.}
 @defidform[boolean]
 @defidform[symbol]
 @defidform[string]
+@defidform[s-expression]
 @defidform[void]
 )]{Primitive types.}
 

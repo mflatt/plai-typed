@@ -41,6 +41,11 @@
          string->symbol symbol->string
          string-append to-string
          display
+
+         s-exp-symbol? s-exp->symbol symbol->s-exp
+         s-exp-number? s-exp->number number->s-exp
+         s-exp-string? s-exp->string string->s-exp
+         s-exp-list? s-exp->list list->s-exp
          
          box unbox set-box!
          
@@ -52,6 +57,7 @@
 
          number boolean symbol 
          (rename-out [string: string])
+         s-expression
          -> 
          (rename-out [listof: listof]
                      [boxof: boxof]
@@ -59,6 +65,19 @@
                      [void: void]))
 
 (define (symbol=? a b) (eq? a b))
+
+(define (s-exp-symbol? s) (symbol? s))
+(define (s-exp->symbol s) (if (symbol? s) s (error 's-exp->symbol "not a symbol: ~e" s)))
+(define (symbol->s-exp s) s)
+(define (s-exp-number? s) (number? s))
+(define (s-exp->number s) (if (number? s) s (error 's-exp->number "not a number: ~e" s)))
+(define (number->s-exp s) s)
+(define (s-exp-string? s) (string? s))
+(define (s-exp->string s) (if (string? s) s (error 's-exp->string "not a string: ~e" s)))
+(define (string->s-exp s) s)
+(define (s-exp-list? s) (list? s))
+(define (s-exp->list s) (if (list? s) s (error 's-exp->list "not a list: ~e" s)))
+(define (list->s-exp s) s)
 
 (define (map2 f l1 l2) (map f l1 l2))
 
@@ -79,6 +98,7 @@
 (define-syntax boolean type)
 (define-syntax symbol type)
 (define-syntax string: type)
+(define-syntax s-expression type)
 (define-syntax -> type)
 (define-syntax listof: type)
 (define-syntax boxof: type)
@@ -442,11 +462,15 @@
   (check-top
    (lambda (stx)
      (syntax-case stx ()
-       [(_ id)
-        (if (identifier? #'id)
-            #'(quote id)
+       [(_ s)
+        (if (let loop ([s #'s])
+              (or (identifier? s)
+                  (let ([l (syntax->list s)])
+                    (and l
+                         (andmap loop l)))))
+            #'(quote s)
             (raise-syntax-error #f
-                                "quote allowed only for creating symbols"
+                                "quote allowed only for creating symbols or s-expressions"
                                 stx))]))))
 
 (define-syntax and:
@@ -965,7 +989,9 @@
             [(type-case: . rest)
              (signal-typecase-syntax-error expr)]
             [(quote: sym)
-             (make-sym expr)]
+             (if (identifier? #'sym)
+                 (make-sym expr)
+                 (make-sexp expr))]
             [(try expr1 (lambda: () expr2))
              (let ([t (typecheck #'expr1 env)])
                (unify! #'expr2 t (typecheck #'expr2 env))
@@ -1078,6 +1104,42 @@
                                                   (list (make-str #f)
                                                         (make-str #f))
                                                   (make-bool #f)))
+                     (cons #'s-exp-symbol? (make-arrow #f 
+                                                       (list (make-sexp #f))
+                                                       (make-bool #f)))
+                     (cons #'s-exp->symbol (make-arrow #f 
+                                                       (list (make-sexp #f))
+                                                       (make-sym #f)))
+                     (cons #'symbol->s-exp (make-arrow #f 
+                                                       (list (make-sym #f))
+                                                       (make-sexp #f)))
+                     (cons #'s-exp-number? (make-arrow #f 
+                                                       (list (make-sexp #f))
+                                                       (make-bool #f)))
+                     (cons #'s-exp->number (make-arrow #f 
+                                                       (list (make-sexp #f))
+                                                       (make-num #f)))
+                     (cons #'number->s-exp (make-arrow #f 
+                                                       (list (make-num #f))
+                                                       (make-sexp #f)))
+                     (cons #'s-exp-string? (make-arrow #f 
+                                                       (list (make-sexp #f))
+                                                       (make-bool #f)))
+                     (cons #'s-exp->string (make-arrow #f 
+                                                       (list (make-sexp #f))
+                                                       (make-str #f)))
+                     (cons #'string->s-exp (make-arrow #f 
+                                                       (list (make-str #f))
+                                                       (make-sexp #f)))
+                     (cons #'s-exp-list? (make-arrow #f 
+                                                       (list (make-sexp #f))
+                                                       (make-bool #f)))
+                     (cons #'s-exp->list (make-arrow #f 
+                                                       (list (make-sexp #f))
+                                                       (make-listof #f (make-sexp #f))))
+                     (cons #'list->s-exp (make-arrow #f 
+                                                     (list (make-listof #f (make-sexp #f)))
+                                                     (make-sexp #f)))
                      (cons #'equal? (let ([a (gen-tvar #f)])
                                       (make-poly #f
                                                  a
