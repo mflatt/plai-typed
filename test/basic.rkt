@@ -34,3 +34,30 @@
 
 (local [(define x (lambda ((x : string)) x))]
   (set! x (lambda (y) (string-append y y))))
+
+(define-type (T 'a) [v (f : ('a -> 'a))])
+(define i (v (lambda (x) x)))
+(test 10 ((v-f i) 10))
+(test "a" ((v-f i) "a"))
+
+(test #t (letrec ([even? (lambda (n)
+                           (if (= 0 n)
+                               #t
+                               (odd? (- n 1))))]
+                  [odd? (lambda (n)
+                          (if (= 0 n)
+                              #f
+                              (even? (- n 1))))])
+           (even? 10)))
+(test (list 3 1 2) (let ([x 1]
+                         [y 2]
+                         [z 3])
+                     (let ([x z]
+                           [y x]
+                           [z y])
+                       (list x y z))))
+(test 4 (let* ([x 1]
+               [y 2]
+               [x y]
+               [y x])
+          (+ y y)))

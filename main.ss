@@ -17,6 +17,7 @@
                      [lambda: lambda]
                      [begin: begin]
                      [local: local]
+                     [letrec: letrec] [let: let] [let*: let*]
                      [cond: cond]
                      [if: if]
                      [or: or]
@@ -314,6 +315,39 @@
                              "expected a function, constant, or tuple defininition"
                              thing)]))
                   (syntax->list #'(thing ...)))]))))
+
+(define-for-syntax (make-let kind)
+  (check-top
+   (lambda (stx)
+     (syntax-case stx ()
+       [(_ ([id rhs] ...) body)
+        (let ([ids (syntax->list #'(id ...))])
+          (for ([id (in-list ids)])
+            (unless (identifier? id) (raise-syntax-error #f
+                                                         "expected an identifier"
+                                                         stx
+                                                         id)))
+          (case kind
+            [(letrec) #'(local: [(define: id rhs) ...] body)]
+            [(let) (with-syntax ([(tmp ...) (generate-temporaries ids)])
+                     #'(local: [(define: tmp rhs) ...]
+                               (local: [(define: id tmp) ...]
+                                       body)))]
+            [(let*) (let loop ([ids ids]
+                               [rhss (syntax->list #'(rhs ...))])
+                      (cond
+                       [(empty? ids) #'body]
+                       [else (with-syntax ([body (loop (cdr ids) (cdr rhss))]
+                                           [id (car ids)]
+                                           [rhs (car rhss)]
+                                           [tmp (car (generate-temporaries (list (car ids))))])
+                               #'(local: [(define: tmp rhs)]
+                                         (local: [(define: id tmp)]
+                                                 body)))]))]))]))))
+
+(define-syntax letrec: (make-let 'letrec))
+(define-syntax let: (make-let 'let))
+(define-syntax let*: (make-let 'let*))
 
 (define-for-syntax (convert-clauses stx)
   ;; Preserve srcloc of each clause:
@@ -829,8 +863,8 @@
       (lambda (tl)
         (let typecheck ([expr tl] [env env])
           (syntax-case expr (: define-type: define: define-values:
-                               lambda: begin: local: begin:
-                               cond: if: or: and: set!: trace:
+                               lambda: begin: local: letrec: let: let*: 
+                               begin: cond: if: or: and: set!: trace:
                                type-case: quote:
                                list vector values: try)
             [(define-type: id [variant (field-id : field-type) ...] ...)
@@ -904,6 +938,12 @@
                                             variants
                                             #f)])
                (typecheck #'expr env))]
+            [(letrec: . _)
+             (typecheck ((make-let 'letrec) expr) env)]
+            [(let: . _)
+             (typecheck ((make-let 'let) expr) env)]
+            [(let*: . _)
+             (typecheck ((make-let 'let*) expr) env)]
             [(cond: [ques ans] ...)
              (let ([res-type (gen-tvar expr)])
                (for-each

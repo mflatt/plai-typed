@@ -126,7 +126,14 @@ Conditionals. Each @scheme[test-expr]s must have type @scheme[boolean].}
 
 @defform[(begin expr ...+)]{Sequence.}
 
-@defform[(local [definition ...] expr)]{ Local binding.}
+@deftogether[(
+@defform[(local [definition ...] expr)]
+@defform[(letrec ([id expr] ...) expr)]
+@defform[(let ([id expr] ...) expr)]
+@defform[(let* ([id expr] ...) expr)]
+)]{
+
+Local binding.}
 
 @defform[(set! id expr)]{
 
