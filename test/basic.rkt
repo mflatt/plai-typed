@@ -40,6 +40,15 @@
 (test 10 ((v-f i) 10))
 (test "a" ((v-f i) "a"))
 
+(define-type-alias IntT (T number))
+(define-type-alias (XT 'x 'y) (T 'x))
+(test 7 ((lambda ([i : IntT]) (type-case (T number) i
+                                [v (f) (f 6)]))
+         (v (lambda (x) (+ 1 x)))))
+(test 7 ((lambda ([i : (XT number string)]) (type-case (T number) i
+                                              [v (f) (f 6)]))
+         (v (lambda (x) (+ 1 x)))))
+
 (test #t (letrec ([even? (lambda (n)
                            (if (= 0 n)
                                #t

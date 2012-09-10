@@ -32,6 +32,7 @@
 
          (rename-out [define-type: define-type]
                      [type-case: type-case])
+         define-type-alias
 
          test test/exn print-only-errors
          
@@ -283,6 +284,23 @@
                           stx
                           thing)]))
                   (syntax->list #'(thing ...)))]))))
+
+(define-syntax define-type-alias
+  (check-top
+   (lambda (stx)
+     (syntax-case stx (quote:)
+       [(_ (id (quote: arg) ...) t)
+        (begin
+          (map (lambda (id)
+                 (unless (identifier? id)
+                   (raise-syntax-error #f "expected an identifier" stx id)))
+               (syntax->list #'(id arg ...)))
+          #'(void))]
+       [(_ id t)
+        (let ([id #'id])
+          (unless (identifier? id)
+            (raise-syntax-error #f "expected `<id>' or `(<id> '<id> ...)'" stx id))
+          #'(void))]))))
 
 (define-syntax begin:
   (check-top
@@ -567,7 +585,7 @@
                       (symbol->string (syntax-e e))))
                 l)))))
 
-(define-for-syntax (typecheck-defns tl datatypes init-env init-variants just-id?)
+(define-for-syntax (typecheck-defns tl datatypes aliases init-env init-variants just-id?)
   (let* ([types (filter
                  values
                  (map
@@ -588,6 +606,15 @@
                                   [else #f]))
                               tl))
                             datatypes)]
+         [aliases (append (for/fold ([aliases null]) ([stx (in-list tl)])
+                            (syntax-case stx (define-type-alias quote:)
+                              [(define-type-alias (name (quote: arg) ...) ty) 
+                               (cons (list #'name (syntax->list #'(arg ...)) #'ty)
+                                     aliases)]
+                              [(define-type-alias name ty) 
+                               (cons (list #'name null #'ty) aliases)]
+                              [else aliases]))
+                          aliases)]
          [make-polymorphic-wrt
           (lambda (t ty tvars)
             (let loop ([tvars tvars][ty ty])
@@ -600,89 +627,138 @@
           (lambda (t tenv)
             (let ([tvars null])
               (let ([ty
-                     (let loop ([t t])
-                       (syntax-case t (number boolean symbol string: gensym listof: boxof: void: -> 
-                                              vectorof: quote: *)
-                         [(quote: id)
-                          (identifier? #'id)
-                          (let ([a (ormap (lambda (p)
-                                            (and (free-identifier=? (car p) #'id)
-                                                 p))
-                                          (append tvars
-                                                  tenv))])
-                            (if a
-                                (cdr a)
-                                (let ([t (gen-tvar #'id)])
-                                  (set! tvars (cons (cons #'id t) tvars))
-                                  t)))]
-                         [number (make-num t)]
-                         [boolean (make-bool t)]
-                         [symbol (make-sym t)]
-                         [string: (make-str t)]
-                         [void: (make-vd t)]
-                         [(gensym who) (gen-tvar #'who)]
-                         [(arg-type ... -> result-type)
-                          (make-arrow t 
-                                      (map loop (syntax->list #'(arg-type ...)))
-                                      (loop #'result-type))]
-                         [(listof: elem)
-                          (make-listof t (loop #'elem))]
-                         [(boxof: elem)
-                          (make-boxof t (loop #'elem))]
-                         [(vectorof: elem)
-                          (make-vectorof t (loop #'elem))]
-                         [(a * more ...)
-                          (let ([m (syntax->list #'(more ...))])
-                            (let loop ([m m])
-                              (cond
-                               [(null? m) #f]
-                               [(null? (cdr m)) #t]
-                               [(free-identifier=? #'* (cadr m))
-                                (loop (cddr m))])))
-                          (make-tupleof t
-                                        (let ploop ([m (syntax->list #'(a * more ...))])
+                     (letrec ([parse-one
+                               (lambda (seen tenv t)
+                                 (let loop ([t t])
+                                   (syntax-case t (number boolean symbol string: gensym listof: boxof: void: -> 
+                                                          vectorof: quote: *)
+                                     [(quote: id)
+                                      (identifier? #'id)
+                                      (let ([a (ormap (lambda (p)
+                                                        (and (free-identifier=? (car p) #'id)
+                                                             p))
+                                                      (append tvars
+                                                              tenv))])
+                                        (if a
+                                            (cdr a)
+                                            (let ([t (gen-tvar #'id)])
+                                              (set! tvars (cons (cons #'id t) tvars))
+                                              t)))]
+                                     [number (make-num t)]
+                                     [boolean (make-bool t)]
+                                     [symbol (make-sym t)]
+                                     [string: (make-str t)]
+                                     [void: (make-vd t)]
+                                     [(gensym who) (gen-tvar #'who)]
+                                     [(arg-type ... -> result-type)
+                                      (make-arrow t 
+                                                  (map loop (syntax->list #'(arg-type ...)))
+                                                  (loop #'result-type))]
+                                     [(listof: elem)
+                                      (make-listof t (loop #'elem))]
+                                     [(boxof: elem)
+                                      (make-boxof t (loop #'elem))]
+                                     [(vectorof: elem)
+                                      (make-vectorof t (loop #'elem))]
+                                     [(a * more ...)
+                                      (let ([m (syntax->list #'(more ...))])
+                                        (let loop ([m m])
                                           (cond
-                                           [(null? (cdr m))
-                                            (list (loop (car m)))]
-                                           [else
-                                            (cons (loop (car m))
-                                                  (ploop (cddr m)))])))]
-                         [() (make-tupleof t null)]
-                         [(id type0 type ...)
-                          (let ([types (syntax->list #'(type0 type ...))])
-                            (or (and (identifier? #'id)
-                                     (ormap (lambda (d)
-                                              (and (free-identifier=? (car d) #'id)
-                                                   (if (= (cdr d) (length types))
-                                                       #t
-                                                       (raise-syntax-error
-                                                        #f
-                                                        (if (zero? (cdr d))
-                                                            "bad type (incorrect use of a non-polymorphic type name)"
-                                                            "type constructor applied to the wrong number of types")
-                                                        t))))
-                                            datatypes)
-                                     (make-datatype t (car (syntax-e t)) (map loop types)))
-                                (raise-syntax-error
-                                 #f
-                                 "bad type"
-                                 t)))]
-                         [else
-                          (or (and (identifier? t)
-                                   (ormap (lambda (d)
-                                            (and (free-identifier=? (car d) t)
-                                                 (if (zero? (cdr d))
-                                                     #t
-                                                     (raise-syntax-error
-                                                      #f
-                                                      "type constructor must be applied to types"
-                                                      t))))
-                                          datatypes)
-                                   (make-datatype t t null))
-                              (raise-syntax-error
-                               #f
-                               "bad type"
-                               t))]))])
+                                           [(null? m) #f]
+                                           [(null? (cdr m)) #t]
+                                           [(free-identifier=? #'* (cadr m))
+                                            (loop (cddr m))])))
+                                      (make-tupleof t
+                                                    (let ploop ([m (syntax->list #'(a * more ...))])
+                                                      (cond
+                                                       [(null? (cdr m))
+                                                        (list (loop (car m)))]
+                                                       [else
+                                                        (cons (loop (car m))
+                                                              (ploop (cddr m)))])))]
+                                     [() (make-tupleof t null)]
+                                     [(id type0 type ...)
+                                      (let ([types (syntax->list #'(type0 type ...))])
+                                        (or (and (identifier? #'id)
+                                                 (ormap (lambda (d)
+                                                          (and (free-identifier=? (car d) #'id)
+                                                               (if (= (cdr d) (length types))
+                                                                   #t
+                                                                   (raise-syntax-error
+                                                                    #f
+                                                                    (if (zero? (cdr d))
+                                                                        "bad type (incorrect use of a non-polymorphic type name)"
+                                                                        "type constructor applied to the wrong number of types")
+                                                                    t))))
+                                                        datatypes)
+                                                 (make-datatype t (car (syntax-e t)) (map loop types)))
+                                            (ormap (lambda (d)
+                                                     (and (free-identifier=? (car d) #'id)
+                                                          (begin
+                                                            (unless (= (length (cadr d)) (length types))
+                                                              
+                                                              (raise-syntax-error
+                                                               #f
+                                                               (if (zero? (cdr d))
+                                                                   "bad type (incorrect use of a non-polymorphic type alias name)"
+                                                                   "type alias constructor applied to the wrong number of types")
+                                                               t))
+                                                            (when (ormap (lambda (s)
+                                                                           (free-identifier=? s t))
+                                                                         seen)
+                                                              (raise-syntax-error
+                                                               #f
+                                                               "recursively defined type alias"
+                                                               t))
+                                                            (parse-one 
+                                                             (cons (car d) seen)
+                                                             (append (map (lambda (formal arg) 
+                                                                            (cons formal 
+                                                                                  (loop arg)))
+                                                                          (cadr d)
+                                                                          types)
+                                                                     tenv)
+                                                             (caddr d)))))
+                                                   aliases)
+                                            (raise-syntax-error
+                                             #f
+                                             "bad type"
+                                             t)))]
+                                     [else
+                                      (or (and (identifier? t)
+                                               (ormap (lambda (d)
+                                                        (and (free-identifier=? (car d) t)
+                                                             (if (zero? (cdr d))
+                                                                 #t
+                                                                 (raise-syntax-error
+                                                                  #f
+                                                                  "type constructor must be applied to types"
+                                                                  t))))
+                                                      datatypes)
+                                               (make-datatype t t null))
+                                          (and (identifier? t)
+                                               (ormap (lambda (d)
+                                                        (and (free-identifier=? (car d) t)
+                                                             (begin
+                                                               (unless (cadr d)
+                                                                 (raise-syntax-error
+                                                                  #f
+                                                                  "type alias constructor must be applied to types"
+                                                                  t))
+                                                               (when (ormap (lambda (s)
+                                                                              (free-identifier=? s t))
+                                                                            seen)
+                                                                 (raise-syntax-error
+                                                                  #f
+                                                                  "recursively defined type alias"
+                                                                  t))
+                                                               (parse-one (cons (car d) seen) tenv (caddr d)))))
+                                                      aliases))
+                                          (raise-syntax-error
+                                           #f
+                                           "bad type"
+                                           t))])))])
+                       (parse-one null tenv t))])
                 (make-polymorphic-wrt t ty (map cdr tvars)))))]
          [parse-type (lambda (type)
                        (parse-type/tenv type null))]
@@ -863,7 +939,7 @@
      (map
       (lambda (tl)
         (let typecheck ([expr tl] [env env])
-          (syntax-case expr (: define-type: define: define-values:
+          (syntax-case expr (: define-type: define: define-values: define-type-alias
                                lambda: begin: local: letrec: let: let*: 
                                begin: cond: if: or: and: set!: trace:
                                type-case: quote:
@@ -871,6 +947,14 @@
             [(define-type: id [variant (field-id : field-type) ...] ...)
              ;; handled in initial env
              (void)]
+            [(define-type-alias (id (quote: arg) ...) t)
+             ;; check that `t' makes sense
+             ((parse-param-type (map (lambda (arg) (cons arg (gen-tvar arg)))
+                                     (syntax->list #'(arg ...))))
+              #'t)]
+            [(define-type-alias id t)
+             ;; check that `t' makes sense
+             (parse-type #'t)]
             [(define: (id arg ...) . rest)
              (typecheck #'(define: id (lambda: (arg ...) . rest))
                         env)]
@@ -932,9 +1016,10 @@
                     (syntax->list #'(e ...)))
                (typecheck #'last-e env))]
             [(local: [defn ...] expr)
-             (let-values ([(ty env datatypes vars tl-tys)
+             (let-values ([(ty env datatypes aliases vars tl-tys)
                            (typecheck-defns (syntax->list #'(defn ...))
                                             datatypes
+                                            aliases
                                             env
                                             variants
                                             #f)])
@@ -1103,15 +1188,18 @@
      (append (let-based-poly def-env)
              init-env)
      datatypes
+     aliases
      variants
      def-env)))
 
 (define-for-syntax tl-env #f)
 (define-for-syntax tl-datatypes #f)
+(define-for-syntax tl-aliases #f)
 (define-for-syntax tl-variants #f)
 
 (define-for-syntax (do-original-typecheck tl)
   (let ([datatypes null]
+        [aliases null]
         [init-env (let ([nn->n (make-arrow #f 
                                            (list (make-num #f)
                                                  (make-num #f))
@@ -1432,10 +1520,10 @@
                                                     (make-vd #f)))))
                      ))])
 
-    (typecheck-defns tl datatypes init-env null #f)))
+    (typecheck-defns tl datatypes aliases init-env null #f)))
 
 (define-syntax (do-typecheck stx)
-  (let-values ([(tys e2 d2 vars tl-types) (do-original-typecheck (cdr (syntax->list stx)))])
+  (let-values ([(tys e2 d2 a2 vars tl-types) (do-original-typecheck (cdr (syntax->list stx)))])
     #`(provide/contract
        #,@(map (λ (tl-thing)
                  #`[#,(car tl-thing)
@@ -1462,13 +1550,15 @@
     [(_ . body)
      (let ([expanded-body (local-expand #'body 'top-level null)])
        (unless tl-env
-         (let-values ([(ts e d vars tl-types) (do-original-typecheck (syntax->list (or orig-body #'())))])
+         (let-values ([(ts e d a vars tl-types) (do-original-typecheck (syntax->list (or orig-body #'())))])
            (set! tl-datatypes d)
+           (set! tl-aliases a)
            (set! tl-env e)
            (set! tl-variants vars)))
-       (let-values ([(tys e2 d2 vars tl-types) 
-                     (typecheck-defns (list #'body) tl-datatypes tl-env tl-variants (identifier? #'body))])
+       (let-values ([(tys e2 d2 a2 vars tl-types) 
+                     (typecheck-defns (list #'body) tl-datatypes tl-aliases tl-env tl-variants (identifier? #'body))])
          (set! tl-datatypes d2)
+         (set! tl-aliases a2)
          (set! tl-env e2)
          (with-syntax ([ty ((type->datum (make-hasheq)) (car tys))]
                        [body expanded-body])

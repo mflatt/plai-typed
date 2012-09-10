@@ -65,11 +65,22 @@ Matches multiple results produced (via @scheme[values]) by
                 [variant-id (field-id : type)]
                 ...)
               ([tyid/abs id
-                         (id 'id ...)])]{
+                         (id '@#,racket[_arg-id] ...)])]{
 
-Define a type (when @scheme[tyid/abs] is @scheme[id]) or type
+Defines a type (when @scheme[tyid/abs] is @scheme[id]) or type
 constructor (when @scheme[tyid/abs] has the form @scheme[(id 'id
 ...)]) with its variants.}
+
+@defform/subs[#:literals (quote)
+              (define-type-alias tyid/abs type)
+              ([tyid/abs id
+                         (id '@#,racket[_arg-id] ...)])]{
+Defines a type alias @racket[id]. Then @racket[tyid/abs] is
+@racket[id], then using @racket[id] is the same as using
+@racket[type]. When @racket[tyid/abs] is @racket[(id '@#,racket[_arg-id] ...)], then
+using @racket[(id _arg-type ...)] is the same as using @racket[type]
+with each @racket['@#,racket[_arg-id]] replaced by the corresponding @racket[_arg-type].}
+
 
 @defform[(trace id ...)]{
 
@@ -168,7 +179,7 @@ independent. Match a @scheme[values] result using
                   [variant-id (field-id ...) expr] ...
                   [else expr])]
                ([tyid/abs id
-                          (id 'id ...)])]{
+                          (id type ...)])]{
 
 Variant dispatch, where @scheme[val-expr] must have type
 @scheme[tyid/abs].}
