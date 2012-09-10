@@ -187,9 +187,12 @@ by @scheme[expr] and calls @scheme[handle-expr].}
 @defthing[rest ((listof 'a) -> (listof 'a))]
 @defthing[empty? ((listof 'a) -> boolean)]
 @defthing[cons? ((listof 'a) -> boolean)]
+@defthing[reverse ((listof 'a) -> (listof 'a))]
 @defthing[map (('a -> 'b) (listof 'a) -> (listof 'b))]
 @defthing[map2 (('a 'b -> 'c) (listof 'a) (listof 'b) -> (listof 'c))]
-@defthing[reverse ((listof 'a) -> (listof 'a))]
+@defthing[filter (('a -> boolean) (listof 'a) -> (listof 'a))]
+@defthing[foldl (('a 'b -> 'b) 'b (listof 'a) -> 'b)]
+@defthing[foldr (('a 'b -> 'b) 'b (listof 'a) -> 'b)]
 )]{List primitives.}
  
 

@@ -37,6 +37,7 @@
          
          cons list empty first rest empty? cons?
          map reverse map2 append
+         filter foldl foldr
          + - = > < <= >= / * symbol=? string=? equal? eq? not
          error try call/cc
 
@@ -1300,6 +1301,42 @@
                                                          (make-listof #f a)
                                                          (make-listof #f b))
                                                    (make-listof #f c)))))))
+                     (cons #'filter (let ([a (gen-tvar #f)])
+                                      (make-poly
+                                       #f
+                                       a
+                                       (make-arrow #f
+                                                   (list (make-arrow #f 
+                                                                     (list a) 
+                                                                     (make-bool #f))
+                                                         (make-listof #f a))
+                                                   (make-listof #f a)))))
+                     (cons #'foldl (let ([a (gen-tvar #f)]
+                                         [b (gen-tvar #f)])
+                                     (make-poly
+                                      #f
+                                      a
+                                      (make-poly
+                                       #f
+                                       b
+                                       (make-arrow #f
+                                                   (list (make-arrow #f (list a b) b)
+                                                         b
+                                                         (make-listof #f a))
+                                                   b)))))
+                     (cons #'foldr (let ([a (gen-tvar #f)]
+                                         [b (gen-tvar #f)])
+                                     (make-poly
+                                      #f
+                                      a
+                                      (make-poly
+                                       #f
+                                       b
+                                       (make-arrow #f
+                                                   (list (make-arrow #f (list a b) b)
+                                                         b
+                                                         (make-listof #f a))
+                                                   b)))))
                      (cons #'reverse (let ([a (gen-tvar #f)])
                                        (make-poly
                                         #f

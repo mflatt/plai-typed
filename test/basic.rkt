@@ -61,3 +61,12 @@
                [x y]
                [y x])
           (+ y y)))
+
+(test (list 2 4 6) (filter (lambda (x) (not (= x 5)))
+                           (list 2 5 5 4 6 5)))
+(test 10 (foldl (lambda (x n) (+ x n))
+                0
+                (list 1 2 3 4)))
+(test "1234" (foldr (lambda (x n) (string-append (to-string x) n))
+                    ""
+                    (list 1 2 3 4)))
