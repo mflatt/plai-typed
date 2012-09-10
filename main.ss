@@ -19,6 +19,7 @@
                      [local: local]
                      [letrec: letrec] [let: let] [let*: let*]
                      [cond: cond]
+                     [case: case]
                      [if: if]
                      [or: or]
                      [and: and]
@@ -347,11 +348,12 @@
                                                          stx
                                                          id)))
           (case kind
-            [(letrec) #'(local: [(define: id rhs) ...] body)]
+            [(letrec) (syntax/loc stx (local: [(define: id rhs) ...] body))]
             [(let) (with-syntax ([(tmp ...) (generate-temporaries ids)])
-                     #'(local: [(define: tmp rhs) ...]
+                     (syntax/loc stx
+                       (local: [(define: tmp rhs) ...]
                                (local: [(define: id tmp) ...]
-                                       body)))]
+                                       body))))]
             [(let*) (let loop ([ids ids]
                                [rhss (syntax->list #'(rhs ...))])
                       (cond
@@ -360,9 +362,10 @@
                                            [id (car ids)]
                                            [rhs (car rhss)]
                                            [tmp (car (generate-temporaries (list (car ids))))])
-                               #'(local: [(define: tmp rhs)]
+                               (syntax/loc stx
+                                 (local: [(define: tmp rhs)]
                                          (local: [(define: id tmp)]
-                                                 body)))]))]))]))))
+                                                 body))))]))]))]))))
 
 (define-syntax letrec: (make-let 'letrec))
 (define-syntax let: (make-let 'let))
@@ -477,7 +480,6 @@
        [_
         (signal-typecase-syntax-error stx)]))))
 
-
 (define-syntax cond:
   (check-top
    (lambda (stx)
@@ -492,6 +494,45 @@
                       [_else (raise-syntax-error
                               #f
                               "expected [<test-expr> <result-expr>]"
+                              stx
+                              thing)]))
+                  (syntax->list #'(thing ...)))]))))
+
+(define-syntax case:
+  (check-top
+   (lambda (stx)
+     (syntax-case stx ()
+       [(_ expr [alts ans] ...)
+        (let loop ([altss (syntax->list #'(alts ...))])
+          (unless (null? altss)
+            (syntax-case (car altss) (else)
+              [else (unless (null? (cdr altss))
+                      (raise-syntax-error #f
+                                          "an `else' case must be last"
+                                          stx
+                                          (car altss)))]
+              [(id ...)
+               (for-each (lambda (id)
+                           (unless (identifier? id)
+                             (raise-syntax-error #f
+                                                 "alternative must be an identitifer"
+                                                 stx
+                                                 id)))
+                         (syntax->list #'(id ...)))]
+              [_ (raise-syntax-error #f
+                                     "expected (<id> ...)"
+                                     stx
+                                     (car altss))])
+            (loop (cdr altss)))
+          (syntax/loc stx
+            (case expr [alts (#%expression ans)] ...)))]
+       [(_ expr thing ...)
+        (for-each (lambda (thing)
+                    (syntax-case thing ()
+                      [[alts ans] 'ok]
+                      [_else (raise-syntax-error
+                              #f
+                              "expected [(<id> ...) <result-expr>] or [else <result-expr>]"
                               stx
                               thing)]))
                   (syntax->list #'(thing ...)))]))))
@@ -941,7 +982,7 @@
         (let typecheck ([expr tl] [env env])
           (syntax-case expr (: define-type: define: define-values: define-type-alias
                                lambda: begin: local: letrec: let: let*: 
-                               begin: cond: if: or: and: set!: trace:
+                               begin: cond: case: if: or: and: set!: trace:
                                type-case: quote:
                                list vector values: try)
             [(define-type: id [variant (field-id : field-type) ...] ...)
@@ -1044,6 +1085,18 @@
                           res-type
                           (typecheck ans env)))
                 (syntax->list #'(ques ...))
+                (syntax->list #'(ans ...)))
+               res-type)]
+            [(case: expr [alts ans] ...)
+             (let ([res-type (gen-tvar #'expr)])
+               (unify! #'expr 
+                       (make-sym #'expr) 
+                       (typecheck #'expr env))
+               (for-each
+                (lambda (ans)
+                  (unify! #'ans
+                          res-type
+                          (typecheck ans env)))
                 (syntax->list #'(ans ...)))
                res-type)]
             [(if: test then else)

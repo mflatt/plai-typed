@@ -79,3 +79,8 @@
 (test "1234" (foldr (lambda (x n) (string-append (to-string x) n))
                     ""
                     (list 1 2 3 4)))
+
+(test 2 (case 'apple
+          [(donut) 1]
+          [(apple banana) 2]
+          [else 5]))

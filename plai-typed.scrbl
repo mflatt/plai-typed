@@ -135,6 +135,12 @@ declares he result type of the function.}
 
 Conditionals. Each @scheme[test-expr]s must have type @scheme[boolean].}
 
+@defform*[#:literals (else)
+          [(case expr [(id ...) expr] ...)
+           (case expr [(id ...) expr] ... [else expr])]]{
+
+Case dispatch on symbols.}
+
 @defform[(begin expr ...+)]{Sequence.}
 
 @deftogether[(
