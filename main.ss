@@ -112,7 +112,7 @@
   (ormap (lambda (i)
            (free-identifier=? a i))
          (syntax->list
-          #'(: number boolean symbol 
+          #'(: number boolean symbol s-expression
                string: -> listof:
                boxof: vectorof:
                void:))))
@@ -671,7 +671,8 @@
                      (letrec ([parse-one
                                (lambda (seen tenv t)
                                  (let loop ([t t])
-                                   (syntax-case t (number boolean symbol string: gensym listof: boxof: void: -> 
+                                   (syntax-case t (number boolean symbol string: s-expression
+                                                          gensym listof: boxof: void: -> 
                                                           vectorof: quote: *)
                                      [(quote: id)
                                       (identifier? #'id)
@@ -688,6 +689,7 @@
                                      [number (make-num t)]
                                      [boolean (make-bool t)]
                                      [symbol (make-sym t)]
+                                     [s-expression (make-sexp t)]
                                      [string: (make-str t)]
                                      [void: (make-vd t)]
                                      [(gensym who) (gen-tvar #'who)]

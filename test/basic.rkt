@@ -1,6 +1,6 @@
 #lang plai-typed
 
-(define x '(a 2 "c" '(d)))
+(define x : s-expression '(a 2 "c" '(d)))
 
 (print-only-errors #t)
 
