@@ -1,4 +1,4 @@
-#lang scheme
+#lang racket
 
 (require (only-in plai
                   define-type
@@ -9,6 +9,7 @@
                   error)
          racket/trace
          (for-syntax scheme/list
+                     racket/provide-transform
                      "types.ss"))
 
 (provide :
@@ -1624,13 +1625,19 @@
 
     (typecheck-defns tl datatypes aliases init-env null #f)))
 
-(define-syntax (do-typecheck stx)
-  (let-values ([(tys e2 d2 a2 vars tl-types) (do-original-typecheck (cdr (syntax->list stx)))])
-    #`(provide/contract
-       #,@(map (λ (tl-thing)
-                 #`[#,(car tl-thing)
-                    #,(to-contract (cdr tl-thing))])
-               tl-types))))
+(define-syntax typecheck-and-provide
+  (make-provide-transformer
+   (lambda (stx modes)
+     (let-values ([(tys e2 d2 a2 vars tl-types) (do-original-typecheck (cdr (syntax->list stx)))])
+       (expand-export
+        ;; Is it ok to "pre-expand" here? It seems to work in this case...
+        (pre-expand-export #`(contract-out
+                              #,@(map (λ (tl-thing)
+                                         #`[#,(car tl-thing)
+                                            #,(to-contract (cdr tl-thing))])
+                                      tl-types))
+                           modes)
+        modes)))))
 
 (define-for-syntax orig-body #f)
 (define-for-syntax (set-orig-body! v)
@@ -1641,9 +1648,9 @@
     [(_ . body)
      #'(begin
          (begin-for-syntax (set-orig-body! (quote-syntax body)))
-         (do-typecheck . body)
-         #;
-         (#%expression (do-typecheck . body)))]))
+         ;; Typechecking happens at the `provide' expansion phase,
+         ;; which is after everything else is expanded:
+         (provide (typecheck-and-provide . body)))]))
 
 ;; ----------------------------------------
 
