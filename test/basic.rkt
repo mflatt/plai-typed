@@ -4,6 +4,8 @@
 
 (print-only-errors #t)
 
+(test 3 (length (list "a" "b" "c")))
+
 (test #t (list? x))
 (test #f (string? x))
 (test #f (symbol? x))

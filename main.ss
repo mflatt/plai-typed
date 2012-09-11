@@ -38,6 +38,7 @@
          test test/exn print-only-errors
          
          cons list empty first rest empty? cons?
+         second third fourth length
          map reverse map2 append
          filter foldl foldr
          + - = > < <= >= / * symbol=? string=? equal? eq? not
@@ -1415,6 +1416,34 @@
                                      (make-arrow #f
                                                  (list (make-listof #f a))
                                                  (make-listof #f a)))))
+                     (cons #'second (let ([a (gen-tvar #f)])
+                                      (make-poly
+                                       #f
+                                       a
+                                       (make-arrow #f
+                                                   (list (make-listof #f a))
+                                                   a))))
+                     (cons #'third (let ([a (gen-tvar #f)])
+                                     (make-poly
+                                      #f
+                                      a
+                                      (make-arrow #f
+                                                  (list (make-listof #f a))
+                                                  a))))
+                     (cons #'fourth (let ([a (gen-tvar #f)])
+                                      (make-poly
+                                       #f
+                                       a
+                                       (make-arrow #f
+                                                   (list (make-listof #f a))
+                                                   a))))
+                     (cons #'length (let ([a (gen-tvar #f)])
+                                      (make-poly
+                                       #f
+                                       a
+                                       (make-arrow #f
+                                                   (list (make-listof #f a))
+                                                   (make-num #f)))))
                      (cons #'map (let ([a (gen-tvar #f)]
                                        [b (gen-tvar #f)])
                                    (make-poly
