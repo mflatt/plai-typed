@@ -86,3 +86,12 @@
           [(donut) 1]
           [(apple banana) 2]
           [else 5]))
+
+(test 7 (cond
+         [(= 0 1) 6]
+         [else 7]))
+
+(test/exn (cond) "no matching")
+(test/exn (cond [#f 10]) "no matching")
+(test/exn (case 'apple) "no matching")
+(test/exn (case 'apple [(banana) 12]) "no matching")

@@ -486,8 +486,15 @@
    (lambda (stx)
      (syntax-case stx ()
        [(_ [ques ans] ...)
-        (syntax/loc stx
-          (cond [ques (#%expression ans)] ...))]
+        (with-syntax ([(catch ...)
+                       (let ([ques (syntax->list #'(ques ...))])
+                         (if (and (pair? ques)
+                                  (identifier? (last ques))
+                                  (free-identifier=? (last ques) #'else))
+                             null
+                             #'([else (cond-error)])))])
+          (syntax/loc stx
+            (cond [ques (#%expression ans)] ... catch ...)))]
        [(_ thing ...)
         (for-each (lambda (thing)
                     (syntax-case thing ()
@@ -499,34 +506,42 @@
                               thing)]))
                   (syntax->list #'(thing ...)))]))))
 
+(define (cond-error)
+  (error 'cond "no matching clause"))
+
 (define-syntax case:
   (check-top
    (lambda (stx)
      (syntax-case stx ()
        [(_ expr [alts ans] ...)
-        (let loop ([altss (syntax->list #'(alts ...))])
-          (unless (null? altss)
-            (syntax-case (car altss) (else)
-              [else (unless (null? (cdr altss))
-                      (raise-syntax-error #f
-                                          "an `else' case must be last"
-                                          stx
-                                          (car altss)))]
-              [(id ...)
-               (for-each (lambda (id)
-                           (unless (identifier? id)
-                             (raise-syntax-error #f
-                                                 "alternative must be an identitifer"
-                                                 stx
-                                                 id)))
-                         (syntax->list #'(id ...)))]
-              [_ (raise-syntax-error #f
-                                     "expected (<id> ...)"
-                                     stx
-                                     (car altss))])
-            (loop (cdr altss)))
+        (with-syntax ([(catch ...)
+                       (let loop ([altss (syntax->list #'(alts ...))])
+                         (if (null? altss)
+                             #'([else (case-error)])
+                             (syntax-case (car altss) (else)
+                               [else
+                                (if (null? (cdr altss))
+                                    '()
+                                    (raise-syntax-error #f
+                                                        "an `else' case must be last"
+                                                        stx
+                                                        (car altss)))]
+                               [(id ...)
+                                (begin
+                                  (for-each (lambda (id)
+                                              (unless (identifier? id)
+                                                (raise-syntax-error #f
+                                                                    "alternative must be an identitifer"
+                                                                    stx
+                                                                    id)))
+                                            (syntax->list #'(id ...)))
+                                  (loop (cdr altss)))]
+                               [_ (raise-syntax-error #f
+                                                      "expected (<id> ...)"
+                                                      stx
+                                                      (car altss))])))])
           (syntax/loc stx
-            (case expr [alts (#%expression ans)] ...)))]
+            (case expr [alts (#%expression ans)] ... catch ...)))]
        [(_ expr thing ...)
         (for-each (lambda (thing)
                     (syntax-case thing ()
@@ -537,6 +552,9 @@
                               stx
                               thing)]))
                   (syntax->list #'(thing ...)))]))))
+
+(define (case-error)
+  (error 'case "no matching clause"))
 
 (define-syntax if:
   (check-top
