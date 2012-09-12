@@ -9,7 +9,6 @@
                   error)
          racket/trace
          (for-syntax scheme/list
-                     racket/provide-transform
                      "types.ss"))
 
 (provide :
@@ -39,7 +38,7 @@
          test test/exn print-only-errors
          
          cons list empty first rest empty? cons?
-         second third fourth length
+         second third fourth list-ref length
          map reverse map2 append
          filter foldl foldr
          + - = > < <= >= / * symbol=? string=? equal? eq? not
@@ -53,6 +52,7 @@
          number? s-exp->number number->s-exp
          string? s-exp->string string->s-exp
          list? s-exp->list list->s-exp
+         (rename-out [read: read])
          
          box unbox set-box!
          
@@ -82,6 +82,17 @@
 (define (s-exp->list s) (if (list? s) s (error 's-exp->list "not a list: ~e" s)))
 (define (list->s-exp s) s)
 
+(define (read:)
+  (define v (read))
+  (unless (let loop ([v v])
+            (or (symbol? v)
+                (string? v) 
+                (number? v)
+                (and (list? v)
+                     (map loop v))))
+    (error 'read "input is not an s-expression: ~e" v))
+  v)
+
 (define (map2 f l1 l2) (map f l1 l2))
 
 (define-syntax (: stx)
@@ -106,7 +117,7 @@
 (define-syntax listof: type)
 (define-syntax boxof: type)
 (define-syntax vectorof: type)
-(define-syntax void: type)
+(define void: void) ; allow as a function
 
 (define (to-string x) (format "~v" x))
 
@@ -1293,6 +1304,8 @@
                                           (list (make-sym #f)
                                                 (make-str #f))
                                           a))))
+                     (cons #'void:
+                           (make-arrow #f null (make-vd #f)))
                      (cons #'not
                            (make-arrow #f
                                        (list (make-bool #f))
@@ -1350,6 +1363,7 @@
                      (cons #'list->s-exp (make-arrow #f 
                                                      (list (make-listof #f (make-sexp #f)))
                                                      (make-sexp #f)))
+                     (cons #'read: (make-arrow #f null (make-sexp #f)))
                      (cons #'equal? (let ([a (gen-tvar #f)])
                                       (make-poly #f
                                                  a
@@ -1456,6 +1470,14 @@
                                        (make-arrow #f
                                                    (list (make-listof #f a))
                                                    a))))
+                     (cons #'list-ref (let ([a (gen-tvar #f)])
+                                        (make-poly
+                                         #f
+                                         a
+                                         (make-arrow #f
+                                                     (list (make-listof #f a)
+                                                           (make-num #f))
+                                                     a))))
                      (cons #'length (let ([a (gen-tvar #f)])
                                       (make-poly
                                        #f
@@ -1625,19 +1647,23 @@
 
     (typecheck-defns tl datatypes aliases init-env null #f)))
 
-(define-syntax typecheck-and-provide
-  (make-provide-transformer
-   (lambda (stx modes)
-     (let-values ([(tys e2 d2 a2 vars tl-types) (do-original-typecheck (cdr (syntax->list stx)))])
-       (expand-export
-        ;; Is it ok to "pre-expand" here? It seems to work in this case...
-        (pre-expand-export #`(contract-out
-                              #,@(map (λ (tl-thing)
-                                         #`[#,(car tl-thing)
-                                            #,(to-contract (cdr tl-thing))])
-                                      tl-types))
-                           modes)
-        modes)))))
+(define-syntax (typecheck-and-provide stx)
+  (let-values ([(tys e2 d2 a2 vars tl-types) 
+                (with-handlers ([exn:fail? (lambda (exn)
+                                             (values exn #f #f #f #f null))])
+                  (do-original-typecheck (cdr (syntax->list stx))))])
+    (if (exn? tys)
+        ;; There was an exception while type checking. To order
+        ;; type-checking errors after expansion, push the error into
+        ;; a sub-expression:
+        #`(#%expression (let-syntax ([x (raise #,tys)])
+                          x))
+        #`(provide
+           (contract-out
+            #,@(map (λ (tl-thing)
+                       #`[#,(car tl-thing)
+                          #,(to-contract (cdr tl-thing))])
+                    tl-types))))))
 
 (define-for-syntax orig-body #f)
 (define-for-syntax (set-orig-body! v)
@@ -1650,7 +1676,7 @@
          (begin-for-syntax (set-orig-body! (quote-syntax body)))
          ;; Typechecking happens at the `provide' expansion phase,
          ;; which is after everything else is expanded:
-         (provide (typecheck-and-provide . body)))]))
+         (typecheck-and-provide . body))]))
 
 ;; ----------------------------------------
 

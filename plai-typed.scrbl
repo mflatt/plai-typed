@@ -207,6 +207,7 @@ by @scheme[expr] and calls @scheme[handle-expr].}
 @defthing[second ((listof 'a) -> 'a)]
 @defthing[third ((listof 'a) -> 'a)]
 @defthing[fourth ((listof 'a) -> 'a)]
+@defthing[list-ref ((listof 'a) number -> 'a)]
 @defthing[length ((listof 'a) -> number)]
 @defthing[reverse ((listof 'a) -> (listof 'a))]
 @defthing[map (('a -> 'b) (listof 'a) -> (listof 'b))]
@@ -272,9 +273,11 @@ S-expressions.}
 @defthing[eq? ('a 'a -> boolean)]
 )]{Comparison primitives.}
 
-@defthing[error (symbol string -> 'a)]{Error primitive}
+@defthing[error (symbol string -> 'a)]{Error primitive.}
 
-@defthing[display ('a -> string)]{Output primitive}
+@defthing[display ('a -> void)]{Output primitive.}
+
+@defthing[read (-> s-expression)]{Input primitive.}
 
 @deftogether[(
 @defthing[box ('a -> (boxof 'a))]
@@ -313,7 +316,10 @@ program from using the result.}
 @defidform[string]
 @defidform[s-expression]
 @defidform[void]
-)]{Primitive types.}
+)]{Primitive types.
+
+The @racket[void] identifier also works as an expression of type
+@racket[(-> void)].}
 
 @defform[#:id -> (type ... -> type)]{
 

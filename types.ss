@@ -49,7 +49,7 @@
         [(sym? type) #'symbol?]
         [(sexp? type) #'(letrec ([s-exp? (recursive-contract (or/c symbol? number? string? (listof s-exp?)))])
                           s-exp?)]
-        [(void? type) #'void?]
+        [(vd? type) #'void?]
         [(str? type) #'string?]
         [(arrow? type)
          (if inside-mutable?  ;; need better support for mutable data structure contracts.

@@ -1,10 +1,15 @@
 #lang plai-typed
 
 (define x : s-expression '(a 2 "c" '(d)))
+(define (f [y : number]) y)
 
 (print-only-errors #t)
 
 (test 3 (length (list "a" "b" "c")))
+(test "b" (list-ref (list "a" "b" "c") 1))
+(test "b" (second (list "a" "b" "c")))
+(test "c" (third (list "a" "b" "c")))
+(test "d" (fourth (list "a" "b" "c" "d")))
 
 (test #t (list? x))
 (test #f (string? x))
@@ -37,7 +42,9 @@
 (local [(define x (lambda ((x : string)) x))]
   (set! x (lambda (y) (string-append y y))))
 
-(define-type (T 'a) [v (f : ('a -> 'a))])
+(define-type (T 'a) 
+  [v (f : ('a -> 'a))]
+  [ordinal (n : number)])
 (define i (v (lambda (x) x)))
 (test 10 ((v-f i) 10))
 (test "a" ((v-f i) "a"))
@@ -45,10 +52,12 @@
 (define-type-alias IntT (T number))
 (define-type-alias (XT 'x 'y) (T 'x))
 (test 7 ((lambda ([i : IntT]) (type-case (T number) i
-                                [v (f) (f 6)]))
+                                [v (f) (f 6)]
+                                [ordinal (n) n]))
          (v (lambda (x) (+ 1 x)))))
 (test 7 ((lambda ([i : (XT number string)]) (type-case (T number) i
-                                              [v (f) (f 6)]))
+                                              [v (f) (f 6)]
+                                              [ordinal (n) n]))
          (v (lambda (x) (+ 1 x)))))
 
 (test #t (letrec ([even? (lambda (n)
@@ -95,3 +104,5 @@
 (test/exn (cond [#f 10]) "no matching")
 (test/exn (case 'apple) "no matching")
 (test/exn (case 'apple [(banana) 12]) "no matching")
+
+(define vd : void (void))
