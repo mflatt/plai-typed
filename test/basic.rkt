@@ -48,6 +48,8 @@
 (define i (v (lambda (x) x)))
 (test 10 ((v-f i) 10))
 (test "a" ((v-f i) "a"))
+(test #t (v? i))
+(test #f (v? (ordinal 8)))
 
 (define-type-alias IntT (T number))
 (define-type-alias (XT 'x 'y) (T 'x))

@@ -982,25 +982,33 @@
                                                  [dt (make-datatype name 
                                                                     name
                                                                     arg-tvars)])
-                                             (cons (cons var
-                                                         (make-polymorphic-wrt
-                                                          var
-                                                          (make-arrow
+                                             (list* (cons var
+                                                          (make-polymorphic-wrt
                                                            var
-                                                           types
-                                                           dt)
-                                                          arg-tvars))
-                                                   (map (lambda (field type)
-                                                          (cons (mk var var "-" field)
-                                                                (make-polymorphic-wrt
-                                                                 field
-                                                                 (make-arrow
+                                                           (make-arrow
+                                                            var
+                                                            types
+                                                            dt)
+                                                           arg-tvars))
+                                                    (cons (mk var var "?")
+                                                          (make-polymorphic-wrt
+                                                           var
+                                                           (make-arrow
+                                                            var
+                                                            (list dt)
+                                                            (make-bool var))
+                                                           arg-tvars))
+                                                    (map (lambda (field type)
+                                                           (cons (mk var var "-" field)
+                                                                 (make-polymorphic-wrt
                                                                   field
-                                                                  (list dt)
-                                                                  type)
-                                                                 arg-tvars)))
-                                                        (syntax->list fields)
-                                                        types))))
+                                                                  (make-arrow
+                                                                   field
+                                                                   (list dt)
+                                                                   type)
+                                                                  arg-tvars)))
+                                                         (syntax->list fields)
+                                                         types))))
                                          (syntax->list #'(variant ...))
                                          (syntax->list #'((field-id ...) ...))
                                          (syntax->list #'((type ...) ...))))))]

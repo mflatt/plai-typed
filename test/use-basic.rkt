@@ -8,6 +8,7 @@
 (test x '(a 2 "c" '(d)))
 (test "ok" ((v-f i) "ok"))
 (test add1 (v-f (v add1)))
+(test #t (v? i))
 
 (test 'err (with-handlers ([exn:fail:contract? (lambda (exn) 'err)])
              (f "a")))
