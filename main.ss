@@ -1712,7 +1712,7 @@
                             (display "\n  " p)
                             (display "\n" p)))
                     0)])
-    (pretty-print t)))
+    (pretty-write t)))
 
 ;; ----------------------------------------
 
