@@ -230,6 +230,10 @@ by @scheme[expr] and calls @scheme[handle-expr].}
 @defthing[< (number number -> boolean)]
 @defthing[>= (number number -> boolean)]
 @defthing[<= (number number -> boolean)]
+@defthing[min (number number -> number)]
+@defthing[max (number number -> number)]
+@defthing[add1 (number -> number)]
+@defthing[sub1 (number -> number)]
 )]{Numeric primitives.}
 
 @defthing[symbol=? (symbol symbol -> boolean)]{

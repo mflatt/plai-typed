@@ -15,6 +15,8 @@
         (box 0)
         (box n))))
 
+(test 12 (+ (max (add1 7) 0) (min (sub1 5) 9)))
+
 (test 3 (length (list "a" "b" "c")))
 (test "b" (list-ref (list "a" "b" "c") 1))
 (test "b" (second (list "a" "b" "c")))

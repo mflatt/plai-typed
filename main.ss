@@ -41,7 +41,8 @@
          second third fourth list-ref length
          map reverse map2 append
          filter foldl foldr
-         + - = > < <= >= / * symbol=? string=? equal? eq? not
+         + - = > < <= >= / * min max add1 sub1
+         symbol=? string=? equal? eq? not
          error try call/cc
 
          string->symbol symbol->string
@@ -1334,6 +1335,10 @@
                      (cons #'> nn->b)
                      (cons #'<= nn->b)
                      (cons #'>= nn->b)
+                     (cons #'min nn->n)
+                     (cons #'max nn->n)
+                     (cons #'add1 (make-arrow #f (list (make-num #f)) (make-num #f)))
+                     (cons #'sub1 (make-arrow #f (list (make-num #f)) (make-num #f)))
                      (cons #'symbol=? (make-arrow #f 
                                                   (list (make-sym #f)
                                                         (make-sym #f))
