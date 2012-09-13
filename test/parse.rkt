@@ -11,8 +11,8 @@
 
 (define (parse s) : ArithS
   (cond
-    [(number? s) (numS (s-exp->number s))]  ;; CAST
-    [(list? s)
+    [(s-exp-number? s) (numS (s-exp->number s))]  ;; CAST
+    [(s-exp-list? s)
      (let ([sl (s-exp->list s)])            ;; CAST
        (case (s-exp->symbol (first sl))     ;; CAST
          [(+) (plusS (parse (second sl)) (parse (third sl)))]

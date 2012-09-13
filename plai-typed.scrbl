@@ -244,22 +244,22 @@ Symbol primitive.}
 )]{String primitives.}
 
 @deftogether[(
-@defthing[symbol? (s-expression -> boolean)]
+@defthing[s-exp-symbol? (s-expression -> boolean)]
 @defthing[s-exp->symbol (s-expression -> symbol)]
 @defthing[symbol->s-exp (symbol -> s-expression)]
-@defthing[number? (s-expression -> boolean)]
+@defthing[s-exp-number? (s-expression -> boolean)]
 @defthing[s-exp->number (s-expression -> number)]
 @defthing[number->s-exp (number -> s-expression)]
-@defthing[string? (s-expression -> boolean)]
+@defthing[s-exp-string? (s-expression -> boolean)]
 @defthing[s-exp->string (s-expression -> string)]
 @defthing[string->s-exp (string -> s-expression)]
-@defthing[list? (s-expression -> boolean)]
+@defthing[s-exp-list? (s-expression -> boolean)]
 @defthing[s-exp->list (s-expression -> (listof s-expression))]
 @defthing[list->s-exp ((listof s-expression) -> s-expression)]
 )]{
 Coercion primitives to and from S-expressions.
 
-The @racket[symbol?] function determines whether an S-expression
+The @racket[s-exp-symbol?] function determines whether an S-expression
 is a symbol; in that case, @racket[s-exp->symbol] acts the identity
 function to produce the symbol, otherwise an exception is raised. The
 @racket[symbol->s-exp] function similarly acts as the identity
