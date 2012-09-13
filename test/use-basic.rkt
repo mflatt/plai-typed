@@ -3,7 +3,7 @@
 
 (define-syntax-rule (test a b)
   (unless (equal? a b)
-    (error 'test "failed")))
+    (error 'test "failed: ~.s" 'b)))
 
 (test x '(a 2 "c" '(d)))
 (test "ok" ((v-f i) "ok"))
@@ -17,3 +17,14 @@
 (test 'err (with-handlers ([exn:fail:contract? (lambda (exn) 'err)])
              (ordinal "x")))
 
+(test '(6 6) (apply-identity (lambda (x) 6) 5))
+
+(test (void) (set-box! (box-number 5) 7))
+(test 'err
+      (with-handlers ([exn:fail:contract? (lambda (exn)
+                                            (if (regexp-match? #rx"box-number: contract violation" (exn-message exn))
+                                                'err
+                                                exn))])
+        (set-box! (box-number 5) "apple")))
+
+            

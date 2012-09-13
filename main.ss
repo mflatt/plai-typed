@@ -1019,276 +1019,279 @@
                         [else null]))
                     tl))]
          [env (append def-env
-                      init-env)])
-    ;; typecheck the sequence:
+                      init-env)]
+         ;; typecheck the sequence:
+         [types
+          (map
+           (lambda (tl)
+             (let typecheck ([expr tl] [env env])
+               (syntax-case expr (: define-type: define: define-values: define-type-alias
+                                    lambda: begin: local: letrec: let: let*: 
+                                    begin: cond: case: if: or: and: set!: trace:
+                                    type-case: quote:
+                                    list vector values: try)
+                 [(define-type: id [variant (field-id : field-type) ...] ...)
+                  ;; handled in initial env
+                  (void)]
+                 [(define-type-alias (id (quote: arg) ...) t)
+                  ;; check that `t' makes sense
+                  ((parse-param-type (map (lambda (arg) (cons arg (gen-tvar arg)))
+                                          (syntax->list #'(arg ...))))
+                   #'t)]
+                 [(define-type-alias id t)
+                  ;; check that `t' makes sense
+                  (parse-type #'t)]
+                 [(define: (id arg ...) . rest)
+                  (typecheck #'(define: id (lambda: (arg ...) . rest))
+                             env)]
+                 [(define: id : type expr)
+                  (let ([pre-timestamp current-timestamp])
+                    (unify-defn! #'expr (lookup #'id env) 
+                                 (typecheck #'expr env)
+                                 pre-timestamp
+                                 current-timestamp))]
+                 [(define: id expr)
+                  (typecheck #'(define: id : (gensym id) expr)
+                             env)]
+                 [(define-values: (id ...) rhs)
+                  (let ([pre-stamp current-timestamp]
+                        [tvars (map (lambda (id)
+                                      (gen-tvar id))
+                                    (syntax->list #'(id ...)))])
+                    (unify! expr 
+                            (make-tupleof expr tvars)
+                            (typecheck #'rhs env))
+                    (let ([post-stamp current-timestamp])
+                      (for-each (lambda (id tvar)
+                                  (unify-defn! expr
+                                               (lookup id env)
+                                               tvar
+                                               pre-stamp
+                                               post-stamp))
+                                (syntax->list #'(id ...))
+                                tvars)))]
+                 [(lambda: (arg ...) : type body)
+                  (let ([arg-ids (map (lambda (arg)
+                                        (if (identifier? arg)
+                                            arg
+                                            (car (syntax-e arg))))
+                                      (syntax->list #'(arg ...)))]
+                        [arg-types (map (lambda (arg)
+                                          (syntax-case arg (:)
+                                            [(id : type)
+                                             (poly-instance (parse-type #'type))]
+                                            [else (gen-tvar arg)]))
+                                        (syntax->list #'(arg ...)))]
+                        [result-type (poly-instance (parse-type #'type))])
+                    (unify! #'body
+                            (typecheck #'body (append (map cons 
+                                                           arg-ids
+                                                           arg-types)
+                                                      env))
+                            result-type)
+                    (make-arrow expr arg-types result-type))]
+                 [(lambda: (arg ...) body)
+                  (with-syntax ([expr expr])
+                    (typecheck (syntax/loc #'expr
+                                 (lambda: (arg ...) : (gensym expr) body))
+                               env))]
+                 [(begin: e ... last-e)
+                  (begin
+                    (map (lambda (e)
+                           (typecheck e env))
+                         (syntax->list #'(e ...)))
+                    (typecheck #'last-e env))]
+                 [(local: [defn ...] expr)
+                  (let-values ([(ty env datatypes aliases vars tl-tys)
+                                (typecheck-defns (syntax->list #'(defn ...))
+                                                 datatypes
+                                                 aliases
+                                                 env
+                                                 variants
+                                                 #f)])
+                    (typecheck #'expr env))]
+                 [(letrec: . _)
+                  (typecheck ((make-let 'letrec) expr) env)]
+                 [(let: . _)
+                  (typecheck ((make-let 'let) expr) env)]
+                 [(let*: . _)
+                  (typecheck ((make-let 'let*) expr) env)]
+                 [(cond: [ques ans] ...)
+                  (let ([res-type (gen-tvar expr)])
+                    (for-each
+                     (lambda (ques ans)
+                       (unless (syntax-case ques (else)
+                                 [else #t]
+                                 [_ #f])
+                         (unify! #'ques
+                                 (make-bool ques)
+                                 (typecheck ques env)))
+                       (unify! #'ans
+                               res-type
+                               (typecheck ans env)))
+                     (syntax->list #'(ques ...))
+                     (syntax->list #'(ans ...)))
+                    res-type)]
+                 [(case: expr [alts ans] ...)
+                  (let ([res-type (gen-tvar #'expr)])
+                    (unify! #'expr 
+                            (make-sym #'expr) 
+                            (typecheck #'expr env))
+                    (for-each
+                     (lambda (ans)
+                       (unify! #'ans
+                               res-type
+                               (typecheck ans env)))
+                     (syntax->list #'(ans ...)))
+                    res-type)]
+                 [(if: test then else)
+                  (begin
+                    (unify! #'test
+                            (make-bool #'test)
+                            (typecheck #'test env))
+                    (let ([then-type (typecheck #'then env)])
+                      (unify! #'then then-type (typecheck #'else env))
+                      then-type))]
+                 [(and: e ...)
+                  (let ([b (make-bool expr)])
+                    (for-each (lambda (e)
+                                (unify! e b (typecheck e env)))
+                              (syntax->list #'(e ...)))
+                    b)]
+                 [(or: e ...)
+                  (let ([b (make-bool expr)])
+                    (for-each (lambda (e)
+                                (unify! e b (typecheck e env)))
+                              (syntax->list #'(e ...)))
+                    b)]
+                 [(set!: id e)
+                  (let ([t (lookup #'id env)])
+                    (if (poly? t)
+                        (raise-syntax-error #f
+                                            "cannot mutate identifier with a polymorphic type"
+                                            expr
+                                            #'id)
+                        (unify! #'id t (typecheck #'e env))))
+                  (make-vd expr)]
+                 [(trace: id ...)
+                  (let ([ids (syntax->list #'(id ...))])
+                    (for-each (lambda (id)
+                                (unify! id (gen-tvar id #t) (typecheck id env)))
+                              ids)
+                    (make-tupleof expr null))]
+                 [(type-case: type val [variant (id ...) ans] ...)
+                  (let ([type (parse-mono-type #'type)]
+                        [res-type (gen-tvar expr)])
+                    (unify! #'val type (typecheck #'val env))
+                    (for-each (lambda (var ids ans)
+                                (let ([id-lst (syntax->list ids)]
+                                      [variant-params (lookup var variants)])
+                                  (unless (= (length id-lst)
+                                             (length variant-params))
+                                    (raise-syntax-error 'type-case
+                                                        (format "variant ~a has ~a fields in the definition but ~a fields here at a use"
+                                                                (syntax-e var)
+                                                                (length variant-params)
+                                                                (length id-lst))
+                                                        var))
+                                  (unify!
+                                   expr
+                                   res-type
+                                   (typecheck ans
+                                              (append (map (lambda (id ftype)
+                                                             (cons id
+                                                                   (instantiate-constructor-at
+                                                                    ftype
+                                                                    type)))
+                                                           id-lst
+                                                           variant-params)
+                                                      env)))))
+                              (syntax->list #'(variant ...))
+                              (syntax->list #'((id ...) ...))
+                              (syntax->list #'(ans ...)))
+                    res-type)]
+                 [(type-case: type val [variant (id ...) ans] ... [else else-ans])
+                  (let ([t (typecheck (syntax/loc expr
+                                        (type-case: type val [variant (id ...) ans] ...))
+                                      env)])
+                    (unify! #'else-ans t (typecheck #'else-ans env))
+                    t)]
+                 [(type-case: . rest)
+                  (signal-typecase-syntax-error expr)]
+                 [(quote: sym)
+                  (if (identifier? #'sym)
+                      (make-sym expr)
+                      (make-sexp expr))]
+                 [(try expr1 (lambda: () expr2))
+                  (let ([t (typecheck #'expr1 env)])
+                    (unify! #'expr2 t (typecheck #'expr2 env))
+                    t)]
+                 [(list arg ...)
+                  (let ([t (gen-tvar expr)])
+                    (for-each (lambda (arg)
+                                (unify! arg t (typecheck arg env)))
+                              (syntax->list #'(arg ...)))
+                    (make-listof expr t))]
+                 [list
+                  (raise-syntax-error #f
+                                      "list constructor must be applied directly to arguments"
+                                      expr)]
+                 [(vector arg ...)
+                  (let ([t (gen-tvar expr)])
+                    (for-each (lambda (arg)
+                                (unify! arg t (typecheck arg env)))
+                              (syntax->list #'(arg ...)))
+                    (make-listof expr t))]
+                 [vector
+                  (raise-syntax-error #f
+                                      "vector constructor must be applied directly to arguments"
+                                      expr)]
+                 [(values: arg ...)
+                  (make-tupleof expr
+                                (map (lambda (arg)
+                                       (typecheck arg env))
+                                     (syntax->list #'(arg ...))))]
+                 [values:
+                  (raise-syntax-error #f
+                                      "tuple constructor must be applied directly to arguments"
+                                      expr)]
+                 [(f arg ...)
+                  (let ([res-type (gen-tvar expr)])
+                    (unify! #'f
+                            (typecheck #'f env)
+                            (make-arrow #'f
+                                        (map (lambda (arg)
+                                               (typecheck arg env))
+                                             (syntax->list #'(arg ...)))
+                                        res-type))
+                    res-type)]
+                 [_else
+                  (cond
+                   [(identifier? expr)
+                    (let ([t (lookup expr env)])
+                      (if just-id?
+                          t
+                          (at-source (poly-instance t) expr)))]
+                   [(boolean? (syntax-e expr))
+                    (make-bool expr)]
+                   [(number? (syntax-e expr))
+                    (make-num expr)]
+                   [(string? (syntax-e expr))
+                    (make-str expr)]
+                   [else
+                    (raise-syntax-error #f
+                                        "don't know how to typecheck"
+                                        expr)])])))
+           tl)]
+         [poly-def-env (let-based-poly def-env)])
     (values
-     (map
-      (lambda (tl)
-        (let typecheck ([expr tl] [env env])
-          (syntax-case expr (: define-type: define: define-values: define-type-alias
-                               lambda: begin: local: letrec: let: let*: 
-                               begin: cond: case: if: or: and: set!: trace:
-                               type-case: quote:
-                               list vector values: try)
-            [(define-type: id [variant (field-id : field-type) ...] ...)
-             ;; handled in initial env
-             (void)]
-            [(define-type-alias (id (quote: arg) ...) t)
-             ;; check that `t' makes sense
-             ((parse-param-type (map (lambda (arg) (cons arg (gen-tvar arg)))
-                                     (syntax->list #'(arg ...))))
-              #'t)]
-            [(define-type-alias id t)
-             ;; check that `t' makes sense
-             (parse-type #'t)]
-            [(define: (id arg ...) . rest)
-             (typecheck #'(define: id (lambda: (arg ...) . rest))
-                        env)]
-            [(define: id : type expr)
-             (let ([pre-timestamp current-timestamp])
-               (unify-defn! #'expr (lookup #'id env) 
-                            (typecheck #'expr env)
-                            pre-timestamp
-                            current-timestamp))]
-            [(define: id expr)
-             (typecheck #'(define: id : (gensym id) expr)
-                        env)]
-            [(define-values: (id ...) rhs)
-             (let ([pre-stamp current-timestamp]
-                   [tvars (map (lambda (id)
-                                 (gen-tvar id))
-                               (syntax->list #'(id ...)))])
-               (unify! expr 
-                       (make-tupleof expr tvars)
-                       (typecheck #'rhs env))
-               (let ([post-stamp current-timestamp])
-                 (for-each (lambda (id tvar)
-                             (unify-defn! expr
-                                          (lookup id env)
-                                          tvar
-                                          pre-stamp
-                                          post-stamp))
-                           (syntax->list #'(id ...))
-                           tvars)))]
-            [(lambda: (arg ...) : type body)
-             (let ([arg-ids (map (lambda (arg)
-                                   (if (identifier? arg)
-                                       arg
-                                       (car (syntax-e arg))))
-                                 (syntax->list #'(arg ...)))]
-                   [arg-types (map (lambda (arg)
-                                     (syntax-case arg (:)
-                                       [(id : type)
-                                        (poly-instance (parse-type #'type))]
-                                       [else (gen-tvar arg)]))
-                                   (syntax->list #'(arg ...)))]
-                   [result-type (poly-instance (parse-type #'type))])
-               (unify! #'body
-                       (typecheck #'body (append (map cons 
-                                                      arg-ids
-                                                      arg-types)
-                                                 env))
-                       result-type)
-               (make-arrow expr arg-types result-type))]
-            [(lambda: (arg ...) body)
-             (with-syntax ([expr expr])
-               (typecheck (syntax/loc #'expr
-                            (lambda: (arg ...) : (gensym expr) body))
-                          env))]
-            [(begin: e ... last-e)
-             (begin
-               (map (lambda (e)
-                      (typecheck e env))
-                    (syntax->list #'(e ...)))
-               (typecheck #'last-e env))]
-            [(local: [defn ...] expr)
-             (let-values ([(ty env datatypes aliases vars tl-tys)
-                           (typecheck-defns (syntax->list #'(defn ...))
-                                            datatypes
-                                            aliases
-                                            env
-                                            variants
-                                            #f)])
-               (typecheck #'expr env))]
-            [(letrec: . _)
-             (typecheck ((make-let 'letrec) expr) env)]
-            [(let: . _)
-             (typecheck ((make-let 'let) expr) env)]
-            [(let*: . _)
-             (typecheck ((make-let 'let*) expr) env)]
-            [(cond: [ques ans] ...)
-             (let ([res-type (gen-tvar expr)])
-               (for-each
-                (lambda (ques ans)
-                  (unless (syntax-case ques (else)
-                            [else #t]
-                            [_ #f])
-                    (unify! #'ques
-                            (make-bool ques)
-                            (typecheck ques env)))
-                  (unify! #'ans
-                          res-type
-                          (typecheck ans env)))
-                (syntax->list #'(ques ...))
-                (syntax->list #'(ans ...)))
-               res-type)]
-            [(case: expr [alts ans] ...)
-             (let ([res-type (gen-tvar #'expr)])
-               (unify! #'expr 
-                       (make-sym #'expr) 
-                       (typecheck #'expr env))
-               (for-each
-                (lambda (ans)
-                  (unify! #'ans
-                          res-type
-                          (typecheck ans env)))
-                (syntax->list #'(ans ...)))
-               res-type)]
-            [(if: test then else)
-             (begin
-               (unify! #'test
-                       (make-bool #'test)
-                       (typecheck #'test env))
-               (let ([then-type (typecheck #'then env)])
-                 (unify! #'then then-type (typecheck #'else env))
-                 then-type))]
-            [(and: e ...)
-             (let ([b (make-bool expr)])
-               (for-each (lambda (e)
-                           (unify! e b (typecheck e env)))
-                         (syntax->list #'(e ...)))
-               b)]
-            [(or: e ...)
-             (let ([b (make-bool expr)])
-               (for-each (lambda (e)
-                           (unify! e b (typecheck e env)))
-                         (syntax->list #'(e ...)))
-               b)]
-            [(set!: id e)
-             (let ([t (lookup #'id env)])
-               (if (poly? t)
-                   (raise-syntax-error #f
-                                       "cannot mutate identifier with a polymorphic type"
-                                       expr
-                                       #'id)
-                   (unify! #'id t (typecheck #'e env))))
-             (make-vd expr)]
-            [(trace: id ...)
-             (let ([ids (syntax->list #'(id ...))])
-               (for-each (lambda (id)
-                           (unify! id (gen-tvar id #t) (typecheck id env)))
-                         ids)
-               (make-tupleof expr null))]
-            [(type-case: type val [variant (id ...) ans] ...)
-             (let ([type (parse-mono-type #'type)]
-                   [res-type (gen-tvar expr)])
-               (unify! #'val type (typecheck #'val env))
-               (for-each (lambda (var ids ans)
-                           (let ([id-lst (syntax->list ids)]
-                                 [variant-params (lookup var variants)])
-                             (unless (= (length id-lst)
-                                        (length variant-params))
-                               (raise-syntax-error 'type-case
-                                                   (format "variant ~a has ~a fields in the definition but ~a fields here at a use"
-                                                           (syntax-e var)
-                                                           (length variant-params)
-                                                           (length id-lst))
-                                                   var))
-                             (unify!
-                              expr
-                              res-type
-                              (typecheck ans
-                                         (append (map (lambda (id ftype)
-                                                        (cons id
-                                                              (instantiate-constructor-at
-                                                               ftype
-                                                               type)))
-                                                      id-lst
-                                                      variant-params)
-                                                 env)))))
-                         (syntax->list #'(variant ...))
-                         (syntax->list #'((id ...) ...))
-                         (syntax->list #'(ans ...)))
-               res-type)]
-            [(type-case: type val [variant (id ...) ans] ... [else else-ans])
-             (let ([t (typecheck (syntax/loc expr
-                                   (type-case: type val [variant (id ...) ans] ...))
-                                 env)])
-               (unify! #'else-ans t (typecheck #'else-ans env))
-               t)]
-            [(type-case: . rest)
-             (signal-typecase-syntax-error expr)]
-            [(quote: sym)
-             (if (identifier? #'sym)
-                 (make-sym expr)
-                 (make-sexp expr))]
-            [(try expr1 (lambda: () expr2))
-             (let ([t (typecheck #'expr1 env)])
-               (unify! #'expr2 t (typecheck #'expr2 env))
-               t)]
-            [(list arg ...)
-             (let ([t (gen-tvar expr)])
-               (for-each (lambda (arg)
-                           (unify! arg t (typecheck arg env)))
-                         (syntax->list #'(arg ...)))
-               (make-listof expr t))]
-            [list
-             (raise-syntax-error #f
-                                 "list constructor must be applied directly to arguments"
-                                 expr)]
-            [(vector arg ...)
-             (let ([t (gen-tvar expr)])
-               (for-each (lambda (arg)
-                           (unify! arg t (typecheck arg env)))
-                         (syntax->list #'(arg ...)))
-               (make-listof expr t))]
-            [vector
-             (raise-syntax-error #f
-                                 "vector constructor must be applied directly to arguments"
-                                 expr)]
-            [(values: arg ...)
-             (make-tupleof expr
-                           (map (lambda (arg)
-                                  (typecheck arg env))
-                                (syntax->list #'(arg ...))))]
-            [values:
-             (raise-syntax-error #f
-                                 "tuple constructor must be applied directly to arguments"
-                                 expr)]
-            [(f arg ...)
-             (let ([res-type (gen-tvar expr)])
-               (unify! #'f
-                       (typecheck #'f env)
-                       (make-arrow #'f
-                                   (map (lambda (arg)
-                                          (typecheck arg env))
-                                        (syntax->list #'(arg ...)))
-                                   res-type))
-               res-type)]
-            [_else
-             (cond
-              [(identifier? expr)
-               (let ([t (lookup expr env)])
-                 (if just-id?
-                     t
-                     (at-source (poly-instance t) expr)))]
-              [(boolean? (syntax-e expr))
-               (make-bool expr)]
-              [(number? (syntax-e expr))
-               (make-num expr)]
-              [(string? (syntax-e expr))
-               (make-str expr)]
-              [else
-               (raise-syntax-error #f
-                                   "don't know how to typecheck"
-                                   expr)])])))
-      tl)
-     (append (let-based-poly def-env)
+     types
+     (append poly-def-env
              init-env)
      datatypes
      aliases
      variants
-     def-env)))
+     poly-def-env)))
 
 (define-for-syntax tl-env #f)
 (define-for-syntax tl-datatypes #f)
@@ -1674,7 +1677,7 @@
            (contract-out
             #,@(map (λ (tl-thing)
                        #`[#,(car tl-thing)
-                          #,(to-contract (cdr tl-thing))])
+                          #,(to-contract (cdr tl-thing) #f)])
                     tl-types))))))
 
 (define-for-syntax orig-body #f)

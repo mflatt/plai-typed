@@ -5,6 +5,16 @@
 
 (print-only-errors #t)
 
+(define apply-identity : (('a -> 'a) 'a -> (listof 'a))
+  (lambda (id x)
+    (list (id x) (id x))))
+
+(define box-number
+  (lambda (n)
+    (if (= n 0)
+        (box 0)
+        (box n))))
+
 (test 3 (length (list "a" "b" "c")))
 (test "b" (list-ref (list "a" "b" "c") 1))
 (test "b" (second (list "a" "b" "c")))

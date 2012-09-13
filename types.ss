@@ -34,46 +34,50 @@
 (define-struct (poly type) (tvar type) #:transparent)
 (define-struct (defn type) (base [rhs #:mutable] [insts #:mutable] [proto-rhs #:mutable]) #:transparent)
 
-(define (to-contract type)
-  (let/ec k
-    (let loop ([type type]
-               [inside-mutable? #f])
-      (cond
-        [(defn? type) 
-         ;; is this the right thing?
-         (if (defn-rhs type)
-             (loop (defn-rhs type) inside-mutable?)
-             (loop (car (defn-proto-rhs type)) inside-mutable?))]
-        [(bool? type) #'boolean?]
-        [(num? type) #'number?]
-        [(sym? type) #'symbol?]
-        [(sexp? type) #'(letrec ([s-exp? (recursive-contract (or/c symbol? number? string? (listof s-exp?)))])
-                          s-exp?)]
-        [(vd? type) #'void?]
-        [(str? type) #'string?]
-        [(arrow? type)
-         (if inside-mutable?  ;; need better support for mutable data structure contracts.
-             (k #'any/c)
-             #`(-> #,@(map (λ (x) (loop x inside-mutable?)) (arrow-args type))
-                   #,(loop (arrow-result type) inside-mutable?)))]
-        [(listof? type) #`(listof #,(loop (listof-element type) inside-mutable?))]
-        [(boxof? type) #`(box/c #,(loop (boxof-element type) #t))]
-        [(vectorof? type) #`(vectorof #,(loop (vectorof-element type) #t))]
-        [(tupleof? type) #`(vector-immutable/c #,@(map (λ (x) (loop x inside-mutable?))
-                                                       (tupleof-args type)))]
-        [(poly? type) (loop (poly-type type) inside-mutable?)]
-        [(datatype? type) 
-         (datum->syntax 
-          (datatype-id type)
-          (string->symbol (format "~a?" (syntax-e (datatype-id type)))))]
-        [(tvar? type)
-         ;; this can be done with new-∀ (in the poly? case), but only new-∃ exists at the moment
-         (if (tvar-rep type)
-             (loop (tvar-rep type) inside-mutable?)
-             (k #'any/c))]
-        [else (raise-syntax-error 'to-contract/expr
-                                  (format "got confused, trying to generate a contract ~s" type) 
-                                  (type-src type))]))))
+(define (to-contract type enforce-poly?)
+  (let loop ([type type]
+             [tvar-names #hasheq()]
+             [inside-mutable? #f])
+    (cond
+     [(defn? type) 
+      ;; is this the right thing?
+      (if (defn-rhs type)
+          (loop (defn-rhs type) tvar-names inside-mutable?)
+          (loop (car (defn-proto-rhs type)) tvar-names inside-mutable?))]
+     [(bool? type) #'boolean?]
+     [(num? type) #'number?]
+     [(sym? type) #'symbol?]
+     [(sexp? type) #'(letrec ([s-exp? (recursive-contract (or/c symbol? number? string? (listof s-exp?)))])
+                       s-exp?)]
+     [(vd? type) #'void?]
+     [(str? type) #'string?]
+     [(arrow? type)
+      #`(-> #,@(map (λ (x) (loop x tvar-names inside-mutable?)) (arrow-args type))
+            #,(loop (arrow-result type) tvar-names inside-mutable?))]
+     [(listof? type) #`(listof #,(loop (listof-element type) tvar-names inside-mutable?))]
+     [(boxof? type) #`(box/c #,(loop (boxof-element type) tvar-names #t))]
+     [(vectorof? type) #`(vectorof #,(loop (vectorof-element type) tvar-names #t))]
+     [(tupleof? type) #`(vector-immutable/c #,@(map (λ (x) (loop x tvar-names inside-mutable?))
+                                                    (tupleof-args type)))]
+     [(poly? type) (if enforce-poly?
+                       (let* ([name (gensym 'a)]
+                              [tvar-names (hash-set tvar-names type name)])
+                         #`(let ([#,name (new-∀/c '#,name)])
+                             #,(loop (poly-type type) tvar-names inside-mutable?)))
+                       (loop (poly-type type) tvar-names inside-mutable?))]
+     [(datatype? type) 
+      (datum->syntax 
+       (datatype-id type)
+       (string->symbol (format "~a?" (syntax-e (datatype-id type)))))]
+     [(tvar? type)
+      ;; this can be done with new-∀ (in the poly? case), but only new-∃ exists at the moment
+      (if (tvar-rep type)
+          (loop (tvar-rep type) tvar-names inside-mutable?)
+          (or (hash-ref tvar-names type #f)
+              #'any/c))]
+     [else (raise-syntax-error 'to-contract/expr
+                               (format "got confused, trying to generate a contract ~s" type) 
+                               (type-src type))])))
 
 (define current-timestamp 0)
 
@@ -184,7 +188,9 @@
               [(boxof? t) (if box-ok?
                               (loop (boxof-element t))
                               null)]
-              [(vectorof? t) (loop (vectorof-element t))]
+              [(vectorof? t) (if box-ok?
+                                 (loop (vectorof-element t))
+                                 null)]
               [(tupleof? t) (apply append
                                    (map loop (tupleof-args t)))]
               [(datatype? t) (apply append
