@@ -25,11 +25,12 @@
                      [and: and]
                      [quote: quote]
                      [set!: set!]
-                     [trace: trace])
+                     [trace: trace]
+                     [require: require])
          #%app #%datum #%top 
          (rename-out [module-begin #%module-begin]
                      [top-interaction #%top-interaction])
-         else
+         else typed-in
 
          (rename-out [define-type: define-type]
                      [type-case: type-case])
@@ -185,6 +186,28 @@
      [(try expr1 (lambda: () expr2))
       (with-handlers* ([exn:fail? (lambda (exn) expr2)])
         expr1)])))
+
+(define-syntax require:
+  (check-top
+   (lambda (stx)
+     (syntax-case stx (typed-in :)
+       [(_ (typed-in lib
+                     [id : type]
+                     ...)
+           ...)
+        (let ([libs (syntax->list #'(lib ...))]
+              [ids (syntax->list #'(id ... ...))])
+          (for ([lib (in-list libs)])
+            (unless (module-path? (syntax->datum lib))
+              (raise-syntax-error #f "bad module path" stx lib)))
+          (for ([id (in-list ids)])
+            (unless (identifier? id)
+              (raise-syntax-error #f "expected an identifier" stx id))))
+        #'(require (only-in lib id ...) ...)]))))
+
+(define-syntax typed-in
+  (lambda (stx)
+    (raise-syntax-error #f "allowed only in `require'" stx)))
 
 (define-syntax define:
   (check-top
@@ -898,11 +921,24 @@
                           [_ (or (string? (syntax-e expr))
                                  (number? (syntax-e expr))
                                  (boolean? (syntax-e expr)))])))]
+         [req-env (apply
+                   append
+                   (map
+                    (lambda (stx)
+                      (syntax-case stx (require: typed-in :)
+                        [(require: (typed-in lib (id : type) ...) ...)
+                         (map (lambda (id type)
+                                (cons id (parse-type type)))
+                              (syntax->list #'(id ... ...))
+                              (syntax->list #'(type ... ...)))]
+                        [else
+                         null]))
+                    tl))]
          [def-env (apply
                    append
                    (map
                     (lambda (stx)
-                      (syntax-case stx (define: define-values: define-type: lambda: :)
+                      (syntax-case stx (require: define: define-values: define-type: lambda: :)
                         [(define-values: (id ...) rhs)
                          (let ([val? (is-value? #'rhs)])
                            (map (lambda (id)
@@ -1020,17 +1056,22 @@
                         [else null]))
                     tl))]
          [env (append def-env
+                      req-env
                       init-env)]
          ;; typecheck the sequence:
          [types
           (map
            (lambda (tl)
              (let typecheck ([expr tl] [env env])
-               (syntax-case expr (: define-type: define: define-values: define-type-alias
+               (syntax-case expr (: require: define-type: define: define-values: 
+                                    define-type-alias
                                     lambda: begin: local: letrec: let: let*: 
                                     begin: cond: case: if: or: and: set!: trace:
                                     type-case: quote:
                                     list vector values: try)
+                 [(require: . _)
+                  ;; handled in require env
+                  (void)]
                  [(define-type: id [variant (field-id : field-type) ...] ...)
                   ;; handled in initial env
                   (void)]
@@ -1242,7 +1283,7 @@
                     (for-each (lambda (arg)
                                 (unify! arg t (typecheck arg env)))
                               (syntax->list #'(arg ...)))
-                    (make-listof expr t))]
+                    (make-vectorof expr t))]
                  [vector
                   (raise-syntax-error #f
                                       "vector constructor must be applied directly to arguments"
@@ -1288,6 +1329,7 @@
     (values
      types
      (append poly-def-env
+             req-env
              init-env)
      datatypes
      aliases

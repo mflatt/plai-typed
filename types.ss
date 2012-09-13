@@ -28,7 +28,7 @@
 (define-struct (arrow type) (args result) #:transparent)
 (define-struct (listof type) (element))
 (define-struct (boxof type) (element))
-(define-struct (vectorof type) (element))
+(define-struct (vectorof type) (element) #:transparent)
 (define-struct (tupleof type) (args))
 (define-struct (datatype type) (id args))
 (define-struct (poly type) (tvar type) #:transparent)
@@ -415,8 +415,8 @@
                              (simplify!* (listof-element t)))]
    [(boxof? t) (make-boxof (type-src t)
                            (simplify!* (boxof-element t)))]
-   [(vectorof? t) (make-listof (type-src t)
-                               (simplify!* (vectorof-element t)))]
+   [(vectorof? t) (make-vectorof (type-src t)
+                                 (simplify!* (vectorof-element t)))]
    [(tupleof? t) (make-tupleof (type-src t)
                                (map simplify!* (tupleof-args t)))]
    [(poly? t) (make-poly (type-src t)

@@ -1,5 +1,5 @@
 #lang scribble/manual
-@(require (for-label (except-in plai-typed :)))
+@(require (for-label plai-typed))
 
 @title{PLAI Typed Language}
 
@@ -80,6 +80,13 @@ Defines a type alias @racket[id]. Then @racket[tyid/abs] is
 @racket[type]. When @racket[tyid/abs] is @racket[(id '@#,racket[_arg-id] ...)], then
 using @racket[(id _arg-type ...)] is the same as using @racket[type]
 with each @racket['@#,racket[_arg-id]] replaced by the corresponding @racket[_arg-type].}
+
+
+@defform[#:literals (typed-in :)
+         (require (typed-in module-path [id : type] ...) ...)]{
+Imports @racket[id]s from @racket[module-path]s. The type system
+assumes (without static or additional dynamic checks) the given
+@racket[type] for each @racket[id].}
 
 
 @defform[(trace id ...)]{
@@ -163,11 +170,11 @@ Assignment.}
 
 Boolean combination. The @scheme[expr]s must have type @scheme[boolean].}
 
-@defproc[(list [elem 'a] ...) (listof 'a)]{
+@defform[(list [elem 'a] ...)]{
 
 Builds a list. All @scheme[elem]s must have the same type.}
 
-@defproc[(vector [elem 'a] ...) (vectorof 'a)]{
+@defform[(vector [elem 'a] ...)]{
 
 Builds a vector. All @scheme[elem]s must have the same type.}
 
@@ -341,6 +348,16 @@ Type for the empty tuple.}
 @defform[(listof type)]{Types for lists of elements.}
 @defform[(boxof type)]{Types for mutable boxes.}
 @defform[(vectorof type)]{Types for vectors of elements.}
+
+@; ----------------------------------------
+
+@section{Syntactic Literals}
+
+@deftogether[(
+@defidform[typed-in]
+@defidform[:]
+)]{
+Syntactic literals for use in declarations such as @racket[define] and @racket[require].}
 
 @; ----------------------------------------
 
