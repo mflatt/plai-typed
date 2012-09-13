@@ -906,8 +906,6 @@
                            (andmap loop (syntax->list #'(a ...)))]
                           [(list a ...)
                            (andmap loop (syntax->list #'(a ...)))]
-                          [(vector a ...)
-                           (andmap loop (syntax->list #'(a ...)))]
                           [empty #t]
                           [(cons a b)
                            (and (loop #'a) (loop #'b))]
