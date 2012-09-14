@@ -1310,17 +1310,25 @@
                                         expr)])])))
            tl)])
     (set-box! let-polys (cons def-env (unbox let-polys)))
-    (define poly-def-env
+    (define poly-env
       (if orig-let-polys
           def-env
           (let-based-poly! (apply append (unbox let-polys)))))
+    (define poly-def-env
+      (if (eq? poly-env def-env)
+          def-env
+          (take poly-env (length def-env))))
     (values
      types
-     env
+     (if (eq? def-env poly-def-env)
+         env
+         (append poly-def-env
+                 req-env
+                 init-env))
      datatypes
      aliases
      variants
-     (take poly-def-env (length def-env)))))
+     poly-def-env)))
 
 (define-for-syntax tl-env #f)
 (define-for-syntax tl-datatypes #f)
