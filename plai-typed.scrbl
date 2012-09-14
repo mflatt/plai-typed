@@ -170,16 +170,16 @@ Assignment.}
 
 Boolean combination. The @scheme[expr]s must have type @scheme[boolean].}
 
-@defform[(list [elem 'a] ...)]{
+@defform[(list elem ...)]{
 
 Builds a list. All @scheme[elem]s must have the same type.}
 
-@defform[(vector [elem 'a] ...)]{
+@defform[(vector elem ...)]{
 
 Builds a vector. All @scheme[elem]s must have the same type.}
 
 
-@defproc[(values [elem 'a] ...) ('a * ...)]{
+@defform[(values elem ...)]{
 
 Types multiple values into one; the type of each @scheme[elem] is
 independent. Match a @scheme[values] result using
