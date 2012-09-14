@@ -63,6 +63,10 @@
 (local [(define x (lambda ((x : string)) x))]
   (set! x (lambda (y) (string-append y y))))
 
+(define il (list (lambda (x) x)))
+(test 5 ((first il) 5))
+(test "a" ((first il) "a"))
+
 (define-type (T 'a) 
   [v (f : ('a -> 'a))]
   [ordinal (n : number)])

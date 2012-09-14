@@ -42,6 +42,19 @@
         (f 10 #f)
         (string-append "x" (f "hi" #t)))))
  #rx"typecheck failed: number vs string")
-
           
-                        
+;; Check that polymorphism inference in nested scopes
+;; doesn't go wrong:
+(syn-test
+ '(module m plai-typed
+    
+    (define member : ('a 'b -> 'c)
+      (lambda (e l)
+        false))
+    
+    (local [(define (in? n)
+              (member n n))]
+      (if (string=? "in?" "in?") 
+          in?
+          (lambda (n) (void)))))
+ #rx"typecheck failed: void vs boolean")

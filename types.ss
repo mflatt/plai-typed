@@ -9,15 +9,14 @@
          to-contract
          create-defn
          make-poly poly? poly-instance at-source instantiate-constructor-at
-         current-timestamp
          unify! unify-defn!
-         let-based-poly
+         let-based-poly!
          lookup
          type->datum)
 
 (define-struct type ([src #:mutable]))
 
-(define-struct (tvar type) ([rep #:mutable] timestamp) #:transparent)
+(define-struct (tvar type) ([rep #:mutable]) #:transparent)
 (define-struct (arrow-tvar tvar) ()) ; must unify with arrow
 (define-struct (bool type) ())
 (define-struct (num type) ())
@@ -79,12 +78,8 @@
                                (format "got confused, trying to generate a contract ~s" type) 
                                (type-src type))])))
 
-(define current-timestamp 0)
-
 (define (gen-tvar src [arrow? #f])
-  (begin
-    (set! current-timestamp (add1 current-timestamp))
-    ((if arrow? make-arrow-tvar make-tvar) src #f current-timestamp)))
+  ((if arrow? make-arrow-tvar make-tvar) src #f))
 
 (define ((type->datum tmap) t)
   (cond
@@ -169,17 +164,12 @@
                                      (map (instance old-tvar new-tvar)
                                           (datatype-args t))))]
    [else t]))
-(define (extract-tvars pre-ts post-ts pre-ts2 post-ts2 t)
+(define (extract-tvars t)
   (let ([tvars
          (let box-loop ([box-ok? #f] [t t])
            (let loop ([t t])
              (cond
-              [(tvar? t) 
-               (if (let ([ts (tvar-timestamp t)])
-                     (or (and (ts . > . pre-ts) (ts . <= . post-ts))
-                         (and (ts . > . pre-ts2) (ts . <= . post-ts2))))
-                   (list t)
-                   null)]
+              [(tvar? t) (list t)]
               [(arrow? t)
                (append ((lambda (t) (box-loop #t t)) (arrow-result t))
                        (apply append
@@ -214,7 +204,7 @@
         (poly-instance (defn-rhs t))
         ;; We only have a skeleton...
         (let ([inst (poly-instance (defn-base t))])
-          ;; Remember this intance to check the type later:
+          ;; Remember this instance to check the type later:
           (set-defn-insts! t (cons (cons #f inst) (defn-insts t)))
           inst))]
    [(tvar? t)
@@ -249,16 +239,16 @@
                   (cdr orig)
                   (cdr new))))])))
 
-(define (create-defn timestamp t)
-  (let ([p (poly-ize t timestamp current-timestamp 0 0)])
+(define (create-defn t)
+  (let ([p (poly-ize t)])
     (make-defn (type-src t)
                p
                (if (poly? p) #f p)
                null
                #f)))
 
-(define (poly-ize t pre-ts post-ts pre-ts2 post-ts2)
-  (let loop ([tvars (extract-tvars pre-ts post-ts pre-ts2 post-ts2 t)][t t])
+(define (poly-ize t)
+  (let loop ([tvars (extract-tvars t)][t t])
     (cond
      [(null? tvars) t]
      [else (loop (cdr tvars)
@@ -267,7 +257,7 @@
                             t))])))
 
 (define (at-source t expr)
-  (let ([t (clone t +inf.0)])
+  (let ([t (clone t)])
     (let loop ([t t])
       (add-srcs! t expr)
       (cond
@@ -286,20 +276,11 @@
         (for-each loop (datatype-args t))]))
     t))
 
-(define (clone t ts)
+(define (clone t)
   (cond
    [(tvar? t) (if (tvar-rep t)
-                  (clone (tvar-rep t) ts)
-                  (if ((tvar-timestamp t) . > . ts)
-                      ;; to let-bound polymorphism, we need
-                      ;; only older vars
-                      (let ([t2 ((if (arrow-tvar? t) make-arrow-tvar make-tvar)
-                                 (type-src t)
-                                 #f
-                                 ts)])
-                        (set-tvar-rep! t t2)
-                        t2)
-                      t))]
+                  (clone (tvar-rep t))
+                  t)]
    [(bool? t) (make-bool (type-src t))]
    [(num? t) (make-num (type-src t))]
    [(sym? t) (make-sym (type-src t))]
@@ -308,24 +289,24 @@
    [(vd? t) (make-vd (type-src t))]
    [(arrow? t) (make-arrow
                 (type-src t)
-                (map (lambda (t) (clone t ts)) (arrow-args t))
-                (clone (arrow-result t) ts))]
+                (map (lambda (t) (clone t)) (arrow-args t))
+                (clone (arrow-result t)))]
    [(listof? t) (make-listof
                  (type-src t)
-                 (clone (listof-element t) ts))]
+                 (clone (listof-element t)))]
    [(boxof? t) (make-boxof
                 (type-src t)
-                (clone (boxof-element t) ts))]
+                (clone (boxof-element t)))]
    [(vectorof? t) (make-vectorof
                    (type-src t)
-                   (clone (vectorof-element t) ts))]
+                   (clone (vectorof-element t)))]
    [(tupleof? t) (make-tupleof
                   (type-src t)
-                  (map (lambda (t) (clone t ts)) (tupleof-args t)))]
+                  (map clone (tupleof-args t)))]
    [(datatype? t) (make-datatype
                    (type-src t)
                    (datatype-id t)
-                   (map (lambda (t) (clone t ts)) (datatype-args t)))]
+                   (map clone (datatype-args t)))]
    [(poly? t) (error 'clone "shouldn't clone poly")]
    [else (error 'clone "unrecognized: ~e" t)]))
 
@@ -389,7 +370,7 @@
         (let ([r (if (tvar? r)
                      r
                      ;; clone it so we can set the location
-                     (clone r +inf.0))])
+                     (clone r))])
           (let loop ([a a])
             (unless (or (eq? r a)
                         (not (tvar? a)))
@@ -436,15 +417,15 @@
                [t (cdr p)])
            (and (defn? t)
                 (or (defn-rhs t)
-                    (let* ([b (simplify!* (car (defn-proto-rhs t)))]
-                           [poly (apply poly-ize b (cdr (defn-proto-rhs t)))])
+                    (let* ([b (simplify!* (defn-proto-rhs t))]
+                           [poly (poly-ize b)])
                       (for-each (lambda (x)
                                   (unify! (car x) (cdr x) (poly-instance poly)))
                                 (defn-insts t))
                       poly)))))
        env))
 
-(define (let-based-poly env)
+(define (let-based-poly! env)
   (let ([defn-types
           ;; Find fixpoint of defn-type polymorphism:
           (let loop ([defn-types (resolve-defn-types env)])
@@ -493,14 +474,12 @@
            (datatype-args b))]
    [else #f]))
 
-(define (unify-defn! expr a b pre-ts post-ts)
+(define (unify-defn! expr a b)
   (if (defn? a)
-      (let ([pre-ts2 current-timestamp]
-            [pi (poly-instance (defn-base a))]
-            [post-ts2 current-timestamp])
+      (let ([pi (poly-instance (defn-base a))])
         (unify! expr pi b)
         (unless (defn-rhs a) 
-          (set-defn-proto-rhs! a (list b pre-ts post-ts pre-ts2 post-ts2))))
+          (set-defn-proto-rhs! a b)))
       (unify! expr a b)))
 
 (define (unify! expr a b)
@@ -515,8 +494,7 @@
           (when (occurs? a b)
             (raise-typecheck-error expr a b "cycle"))
           (if (tvar? b)
-              (if (or (< (tvar-timestamp b) (tvar-timestamp a))
-                      (arrow-tvar? b))
+              (if (arrow-tvar? b)
                   (begin
                     (set-tvar-rep! a b)
                     (add-srcs! b a))
@@ -526,7 +504,7 @@
               (if (and (arrow-tvar? a)
                        (not (arrow? b)))
                   (raise-typecheck-error expr a b "trace procedure")
-                  (let ([b (clone b (tvar-timestamp a))])
+                  (let ([b (clone b)])
                     (set-tvar-rep! a b)
                     (add-srcs! b a))))]
          [(bool? a)

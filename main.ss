@@ -685,7 +685,7 @@
                       (symbol->string (syntax-e e))))
                 l)))))
 
-(define-for-syntax (typecheck-defns tl datatypes aliases init-env init-variants just-id?)
+(define-for-syntax (typecheck-defns tl datatypes aliases init-env init-variants just-id? orig-let-polys)
   (let* ([types (filter
                  values
                  (map
@@ -943,7 +943,6 @@
                                   (if (identifier? id)
                                       (cons id (if val?
                                                    (create-defn
-                                                    current-timestamp
                                                     (gen-tvar id))
                                                    (gen-tvar id)))
                                       (syntax-case id (:)
@@ -951,33 +950,28 @@
                                          (cons #'id 
                                                (if val?
                                                    (create-defn
-                                                    current-timestamp
                                                     (parse-type #'type))
                                                    (parse-mono-type #'type)))])))
                                 (syntax->list #'(id ...))))]
                         [(define: (id . args) : result-type . _body)
                          (list (cons #'id
                                      (create-defn
-                                      current-timestamp
                                       (make-arrow 
                                        #'id
                                        (map extract-arg-type
                                             (syntax->list #'args))
                                        (parse-mono-type #'result-type)))))]
                         [(define: (id . args) . _body)
-                         (list (cons #'id (create-defn current-timestamp
-                                                       (make-arrow 
+                         (list (cons #'id (create-defn (make-arrow 
                                                         #'id
                                                         (map extract-arg-type (syntax->list #'args))
                                                         (gen-tvar #'id)))))]
                         [(define: id : type (lambda: . _))
                          (list (cons #'id
-                                     (create-defn current-timestamp
-                                                  (parse-type #'type))))]
+                                     (create-defn (parse-type #'type))))]
                         [(define: id (lambda: args : result-type expr))
                          (list (cons #'id
                                      (create-defn
-                                      current-timestamp
                                       (make-arrow
                                        #'id
                                        (map extract-arg-type (syntax->list #'args))
@@ -985,7 +979,6 @@
                         [(define: id (lambda: args expr))
                          (list (cons #'id
                                      (create-defn
-                                      current-timestamp
                                       (make-arrow
                                        #'id
                                        (map extract-arg-type (syntax->list #'args))
@@ -994,14 +987,12 @@
                          (list (cons #'id 
                                      (if (is-value? #'expr)
                                          (create-defn
-                                          current-timestamp
                                           (parse-type #'type))
                                          (parse-mono-type #'type))))]
                         [(define: id expr)
                          (list (cons #'id 
                                      (if (is-value? #'expr)
                                          (create-defn
-                                          current-timestamp
                                           (gen-tvar #'id))
                                          (gen-tvar #'id))))]
                         [(define-type: name
@@ -1056,6 +1047,7 @@
          [env (append def-env
                       req-env
                       init-env)]
+         [let-polys (or orig-let-polys (box null))]
          ;; typecheck the sequence:
          [types
           (map
@@ -1085,31 +1077,24 @@
                   (typecheck #'(define: id (lambda: (arg ...) . rest))
                              env)]
                  [(define: id : type expr)
-                  (let ([pre-timestamp current-timestamp])
-                    (unify-defn! #'expr (lookup #'id env) 
-                                 (typecheck #'expr env)
-                                 pre-timestamp
-                                 current-timestamp))]
+                  (unify-defn! #'expr (lookup #'id env)
+                               (typecheck #'expr env))]
                  [(define: id expr)
                   (typecheck #'(define: id : (gensym id) expr)
                              env)]
                  [(define-values: (id ...) rhs)
-                  (let ([pre-stamp current-timestamp]
-                        [tvars (map (lambda (id)
+                  (let ([tvars (map (lambda (id)
                                       (gen-tvar id))
                                     (syntax->list #'(id ...)))])
                     (unify! expr 
                             (make-tupleof expr tvars)
                             (typecheck #'rhs env))
-                    (let ([post-stamp current-timestamp])
-                      (for-each (lambda (id tvar)
-                                  (unify-defn! expr
-                                               (lookup id env)
-                                               tvar
-                                               pre-stamp
-                                               post-stamp))
-                                (syntax->list #'(id ...))
-                                tvars)))]
+                    (for-each (lambda (id tvar)
+                                (unify-defn! expr
+                                             (lookup id env)
+                                             tvar))
+                              (syntax->list #'(id ...))
+                              tvars))]
                  [(lambda: (arg ...) : type body)
                   (let ([arg-ids (map (lambda (arg)
                                         (if (identifier? arg)
@@ -1148,7 +1133,8 @@
                                                  aliases
                                                  env
                                                  variants
-                                                 #f)])
+                                                 #f
+                                                 let-polys)])
                     (typecheck #'expr env))]
                  [(letrec: . _)
                   (typecheck ((make-let 'letrec) expr) env)]
@@ -1211,7 +1197,7 @@
                                             "cannot mutate identifier with a polymorphic type"
                                             expr
                                             #'id)
-                        (unify! #'id t (typecheck #'e env))))
+                        (unify-defn! #'id t (typecheck #'e env))))
                   (make-vd expr)]
                  [(trace: id ...)
                   (let ([ids (syntax->list #'(id ...))])
@@ -1322,17 +1308,19 @@
                     (raise-syntax-error #f
                                         "don't know how to typecheck"
                                         expr)])])))
-           tl)]
-         [poly-def-env (let-based-poly def-env)])
+           tl)])
+    (set-box! let-polys (cons def-env (unbox let-polys)))
+    (define poly-def-env
+      (if orig-let-polys
+          def-env
+          (let-based-poly! (apply append (unbox let-polys)))))
     (values
      types
-     (append poly-def-env
-             req-env
-             init-env)
+     env
      datatypes
      aliases
      variants
-     poly-def-env)))
+     (take poly-def-env (length def-env)))))
 
 (define-for-syntax tl-env #f)
 (define-for-syntax tl-datatypes #f)
@@ -1704,8 +1692,7 @@
                                                     (list a)
                                                     (make-vd #f)))))
                      ))])
-
-    (typecheck-defns tl datatypes aliases init-env null #f)))
+    (typecheck-defns tl datatypes aliases init-env null #f #f)))
 
 (define-syntax (typecheck-and-provide stx)
   (let-values ([(tys e2 d2 a2 vars tl-types) 
@@ -1751,7 +1738,7 @@
            (set! tl-env e)
            (set! tl-variants vars)))
        (let-values ([(tys e2 d2 a2 vars tl-types) 
-                     (typecheck-defns (list #'body) tl-datatypes tl-aliases tl-env tl-variants (identifier? #'body))])
+                     (typecheck-defns (list #'body) tl-datatypes tl-aliases tl-env tl-variants (identifier? #'body) #f)])
          (set! tl-datatypes d2)
          (set! tl-aliases a2)
          (set! tl-env e2)
