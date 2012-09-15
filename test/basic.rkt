@@ -26,6 +26,11 @@
 
 (test 12 (+ (max (add1 7) 0) (min (sub1 5) 9)))
 
+(test #t (zero? (- (ceiling (floor (remainder 5 3)))
+                   (identity (modulo 5 3)))))
+(test #t (odd? 7))
+(test #f (even? 7))
+
 (test 3 (length (list "a" "b" "c")))
 (test "b" (list-ref (list "a" "b" "c") 1))
 (test "b" (second (list "a" "b" "c")))
@@ -143,3 +148,15 @@
            [ORH (node "Worcester" (list PVD BOS))]
            [BOS (node "Boston" (list PVD ORH))])
     (list PVD ORH BOS)))
+
+(define n (if #f
+              (+ (time 10) 1)
+              0))
+
+(test 5 (length (build-list 5 (lambda (i) (if (zero? i) "s" "f")))))
+
+(when (zero? 5) 1 "x")
+(unless (odd? 5) 1 "x")
+
+(test #t (member 1 (list 3 2 1)))
+(test #f (member 6 (list 3 2 1)))

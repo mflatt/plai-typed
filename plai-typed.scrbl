@@ -151,6 +151,11 @@ Case dispatch on symbols.}
 @defform[(begin expr ...+)]{Sequence.}
 
 @deftogether[(
+@defform[(when test-expr expr ...+)]
+@defform[(unless test-expr expr ...+)]
+)]{Conditional sequence.}
+
+@deftogether[(
 @defform[(local [definition ...] expr)]
 @defform[(letrec ([id expr] ...) expr)]
 @defform[(let ([id expr] ...) expr)]
@@ -221,11 +226,13 @@ by @scheme[expr] and calls @scheme[handle-expr].}
 @defthing[list-ref ((listof 'a) number -> 'a)]
 @defthing[length ((listof 'a) -> number)]
 @defthing[reverse ((listof 'a) -> (listof 'a))]
+@defthing[member ('a (listof 'a) -> boolean)]
 @defthing[map (('a -> 'b) (listof 'a) -> (listof 'b))]
 @defthing[map2 (('a 'b -> 'c) (listof 'a) (listof 'b) -> (listof 'c))]
 @defthing[filter (('a -> boolean) (listof 'a) -> (listof 'a))]
 @defthing[foldl (('a 'b -> 'b) 'b (listof 'a) -> 'b)]
 @defthing[foldr (('a 'b -> 'b) 'b (listof 'a) -> 'b)]
+@defthing[build-list ('a (number -> 'a) -> (listof 'a))]
 )]{List primitives.}
  
 
@@ -236,6 +243,8 @@ by @scheme[expr] and calls @scheme[handle-expr].}
 @defthing[- (number number -> number)]
 @defthing[* (number number -> number)]
 @defthing[/ (number number -> number)]
+@defthing[quotient (number number -> number)]
+@defthing[remainder (number number -> number)]
 @defthing[= (number number -> boolean)]
 @defthing[> (number number -> boolean)]
 @defthing[< (number number -> boolean)]
@@ -243,8 +252,13 @@ by @scheme[expr] and calls @scheme[handle-expr].}
 @defthing[<= (number number -> boolean)]
 @defthing[min (number number -> number)]
 @defthing[max (number number -> number)]
+@defthing[floor (number -> number)]
+@defthing[ceiling (number -> number)]
 @defthing[add1 (number -> number)]
 @defthing[sub1 (number -> number)]
+@defthing[zero? (number -> boolean)]
+@defthing[odd? (number -> boolean)]
+@defthing[even? (number -> boolean)]
 )]{Numeric primitives.}
 
 @defthing[symbol=? (symbol symbol -> boolean)]{
@@ -283,6 +297,8 @@ function to view a symbol as an S-expression.
 The other functions work similarly for numbers, strings, and lists of
 S-expressions.}
 
+@defthing[identity ('a -> 'a)]{Identity primitive.}
+
 @deftogether[(
 @defthing[equal? ('a 'a -> boolean)]
 @defthing[eq? ('a 'a -> boolean)]
@@ -319,6 +335,9 @@ Test primitive forms that, in the case of @racket[test] and @racket[test/exn], d
 value. Instead, they produce results suitable for automatic display
 through a top-level expression. The @scheme[void] type merely prevents your
 program from using the result.}
+
+@defform[(time expr)]{
+Shows the time taken to evaluate @racket[expr].}
 
 @; ----------------------------------------
 

@@ -23,10 +23,13 @@
                      [cond: cond]
                      [case: case]
                      [if: if]
+                     [when: when]
+                     [unless: unless]
                      [or: or]
                      [and: and]
                      [quote: quote]
                      [set!: set!]
+                     [time: time]
                      [trace: trace]
                      [require: require])
          #%app #%datum #%top 
@@ -41,10 +44,14 @@
          test test/exn print-only-errors
          
          cons list empty first rest empty? cons?
-         second third fourth list-ref length
+         second third fourth list-ref build-list length
          map reverse map2 append
          filter foldl foldr
-         + - = > < <= >= / * min max add1 sub1
+         (rename-out [member: member])
+
+         + - = > < <= >= / * min max 
+         add1 sub1 zero? odd? even?
+         modulo remainder floor ceiling
          symbol=? string=? equal? eq? not
          error try call/cc
 
@@ -63,6 +70,8 @@
          make-vector vector-ref vector-set! vector-length vector
          
          (rename-out [values: values])
+
+         identity
 
          true false
 
@@ -126,6 +135,9 @@
 (define-syntax boxof: type)
 (define-syntax vectorof: type)
 (define void: void) ; allow as a function
+
+(define (member: a l)
+  (and (member a l) #t))
 
 (define (to-string x) (format "~v" x))
 
@@ -678,6 +690,20 @@
                             "missing else-expression"
                             stx)]))))
 
+(define-syntax when:
+  (check-top
+   (lambda (stx)
+     (syntax-case stx ()
+       [(_ tst expr ...)
+        (syntax/loc stx (when tst expr ...))]))))
+
+(define-syntax unless:
+  (check-top
+   (lambda (stx)
+     (syntax-case stx ()
+       [(_ tst expr ...)
+        (syntax/loc stx (unless tst expr ...))]))))
+
 (define-syntax quote:
   (check-top
    (lambda (stx)
@@ -717,6 +743,11 @@
                                 "expected an identifier"
                                 stx
                                 #'id))]))))
+
+(define-syntax time:
+  (check-top
+   (syntax-rules ()
+     [(_ expr) (time expr)])))
 
 (define-syntax trace:
   (check-top
@@ -1126,8 +1157,9 @@
                (syntax-case expr (: require: define-type: define: define-values: 
                                     define-type-alias
                                     lambda: begin: local: letrec: let: let*: shared:
-                                    begin: cond: case: if: or: and: set!: trace:
-                                    type-case: quote:
+                                    begin: cond: case: if: when: unless:
+                                    or: and: set!: trace:
+                                    type-case: quote: time:
                                     list vector values: try)
                  [(require: . _)
                   ;; handled in require env
@@ -1258,6 +1290,20 @@
                     (let ([then-type (typecheck #'then env)])
                       (unify! #'then then-type (typecheck #'else env))
                       then-type))]
+                 [(when: test e ...)
+                  (begin
+                    (unify! #'test
+                            (make-bool #'test)
+                            (typecheck #'test env))
+                    (typecheck #'(begin: e ...) env)
+                    (make-vd expr))]
+                 [(unless: test e ...)
+                  (begin
+                    (unify! #'test
+                            (make-bool #'test)
+                            (typecheck #'test env))
+                    (typecheck #'(begin: e ...) env)
+                    (make-vd expr))]
                  [(and: e ...)
                   (let ([b (make-bool expr)])
                     (for-each (lambda (e)
@@ -1328,6 +1374,8 @@
                   (if (identifier? #'sym)
                       (make-sym expr)
                       (make-sexp expr))]
+                 [(time: expr)
+                  (typecheck #'expr env)]
                  [(try expr1 (lambda: () expr2))
                   (let ([t (typecheck #'expr1 env)])
                     (unify! #'expr2 t (typecheck #'expr2 env))
@@ -1422,10 +1470,16 @@
                                            (list (make-num #f)
                                                  (make-num #f))
                                            (make-num #f))]
+                        [n->n (make-arrow #f 
+                                          (list (make-num #f))
+                                          (make-num #f))]
                         [nn->b (make-arrow #f 
                                            (list (make-num #f)
                                                  (make-num #f))
-                                           (make-bool #f))])
+                                           (make-bool #f))]
+                        [n->b (make-arrow #f 
+                                          (list (make-num #f))
+                                          (make-bool #f))])
                     (list
                      (cons #'error
                            (let ([a (gen-tvar #f)])
@@ -1453,8 +1507,15 @@
                      (cons #'>= nn->b)
                      (cons #'min nn->n)
                      (cons #'max nn->n)
-                     (cons #'add1 (make-arrow #f (list (make-num #f)) (make-num #f)))
-                     (cons #'sub1 (make-arrow #f (list (make-num #f)) (make-num #f)))
+                     (cons #'modulo nn->n)
+                     (cons #'remainder nn->n)
+                     (cons #'floor n->n)
+                     (cons #'ceiling n->n)
+                     (cons #'add1 n->n)
+                     (cons #'sub1 n->n)
+                     (cons #'zero? n->b)
+                     (cons #'odd? n->b)
+                     (cons #'even? n->b)
                      (cons #'symbol=? (make-arrow #f 
                                                   (list (make-sym #f)
                                                         (make-sym #f))
@@ -1614,6 +1675,16 @@
                                                      (list (make-listof #f a)
                                                            (make-num #f))
                                                      a))))
+                     (cons #'build-list (let ([a (gen-tvar #f)])
+                                          (make-poly
+                                           #f
+                                           a
+                                           (make-arrow #f
+                                                       (list (make-num #f)
+                                                             (make-arrow #f
+                                                                         (list (make-num #f))
+                                                                         a))
+                                                       (make-listof #f a)))))
                      (cons #'length (let ([a (gen-tvar #f)])
                                       (make-poly
                                        #f
@@ -1650,6 +1721,14 @@
                                                          (make-listof #f a)
                                                          (make-listof #f b))
                                                    (make-listof #f c)))))))
+                     (cons #'member: (let ([a (gen-tvar #f)])
+                                       (make-poly
+                                        #f
+                                        a
+                                        (make-arrow #f
+                                                    (list a
+                                                          (make-listof #f a))
+                                                    (make-bool #f)))))
                      (cons #'filter (let ([a (gen-tvar #f)])
                                       (make-poly
                                        #f
@@ -1765,6 +1844,13 @@
                      (cons #'symbol->string (make-arrow #f 
                                                         (list (make-sym #f))
                                                         (make-str #f)))
+                     (cons #'identity (let ([a (gen-tvar #f)])
+                                        (make-poly
+                                         #f
+                                         a
+                                         (make-arrow #f
+                                                     (list a)
+                                                     a))))
                      (cons #'to-string (let ([a (gen-tvar #f)])
                                          (make-poly
                                           #f
