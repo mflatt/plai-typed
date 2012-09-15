@@ -8,7 +8,7 @@
                   print-only-errors
                   error)
          racket/trace
-         (for-syntax scheme/list
+         (for-syntax racket/list
                      "types.ss"
                      racket/struct-info))
 
@@ -618,9 +618,7 @@
                                   [(id arg ...) #'id]))]
                       [(clause ...) (convert-clauses stx)])
           (syntax/loc stx
-            (type-case type expr 
-              [variant (id ...) (#%expression ans)] ...
-              [else (#%expression else-ans)])))]
+            (type-case type expr clause ...)))]
        [_
         (signal-typecase-syntax-error stx)]))))
 

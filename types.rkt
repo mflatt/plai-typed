@@ -1,8 +1,8 @@
-#lang scheme/base
-(require scheme/list
-         scheme/pretty
-         (for-template scheme/contract
-                       scheme/base))
+#lang racket/base
+(require racket/list
+         racket/pretty
+         (for-template racket/contract/base
+                       racket/base))
 
 (provide gen-tvar make-bool make-num make-sym make-str make-vd make-sexp
          make-arrow make-listof make-boxof make-tupleof make-vectorof make-datatype
