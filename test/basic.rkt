@@ -133,3 +133,13 @@
 (test/exn (case 'apple [(banana) 12]) "no matching")
 
 (define vd : void (void))
+
+(define-type SharedGraph$
+  [node (s : string)
+        (next : (listof SharedGraph$))])
+
+(define g1 : (listof SharedGraph$)
+  (shared ([PVD (node "Providence" (list ORH BOS))]
+           [ORH (node "Worcester" (list PVD BOS))]
+           [BOS (node "Boston" (list PVD ORH))])
+    (list PVD ORH BOS)))

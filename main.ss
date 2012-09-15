@@ -9,7 +9,8 @@
                   error)
          racket/trace
          (for-syntax scheme/list
-                     "types.ss"))
+                     "types.ss"
+                     racket/struct-info))
 
 (provide :
          (rename-out [define: define]
@@ -18,6 +19,7 @@
                      [begin: begin]
                      [local: local]
                      [letrec: letrec] [let: let] [let*: let*]
+                     [shared: shared]
                      [cond: cond]
                      [case: case]
                      [if: if]
@@ -282,6 +284,30 @@
           (syntax/loc stx
             (lambda (arg ...) (#%expression expr))))]))))
 
+(begin-for-syntax
+ ;; Used to declare a variant name so that `shared' can create instances
+ (struct constructor-syntax (id selectors mutators)
+   #:property prop:set!-transformer
+   (lambda (c stx)
+     (with-syntax ([id (syntax-property (constructor-syntax-id c)
+                                        'constructor-for
+                                        (syntax-case stx (set!)
+                                          [(set! id . _) #'id]
+                                          [(id . _) #'id]
+                                          [_ stx]))])
+       (syntax-case stx (set!)
+         [(set! _ rhs) (syntax/loc stx (set! id rhs))]
+         [(_ arg ...) (syntax/loc stx (id arg ...))]
+         [_ #'id])))
+   #:property prop:struct-info
+   (lambda (c)
+     (list #f 
+           (constructor-syntax-id c)
+           #f
+           (reverse (constructor-syntax-selectors c))
+           (reverse (constructor-syntax-mutators c))
+           #f))))
+
 (define-syntax define-type:
   (check-top
    (lambda (stx)
@@ -303,10 +329,40 @@
                               #'id
                               (syntax-case #'id (quote:)
                                 [(id (quote: arg) ...)
-                                 #'id]))])
+                                 #'id]))]
+                      [($variant ...) (map (lambda (variant)
+                                             (datum->syntax variant
+                                                            (string->uninterned-symbol
+                                                             (symbol->string (syntax-e variant)))
+                                                            variant
+                                                            variant))
+                                           (syntax->list #'(variant ...)))]
+                      [(((variant-field set-variant-field!) ...) ...)
+                       (map (lambda (variant fields)
+                              (map (lambda (field)
+                                     (define (mk fmt)
+                                       (datum->syntax variant
+                                                      (string->symbol
+                                                       (format fmt
+                                                               (syntax-e variant)
+                                                               (syntax-e field)))
+                                                      variant
+                                                      variant))
+                                     (list (mk "~a-~a") (mk "set-~a-~a!")))
+                                   (syntax->list fields)))
+                            (syntax->list #'(variant ...))
+                            (syntax->list #'((field ...) ...)))])
           (let ([s #'(define-type id
-                       [variant (field (lambda (x) #t)) ...] ...)])
-            (datum->syntax stx (syntax-e s) stx stx)))]
+                         [$variant (field (lambda (x) #t)) ...] ...)])
+            #`(begin
+                #,(datum->syntax stx (syntax-e s) stx stx)
+                (define-syntax variant (constructor-syntax
+                                        (quote-syntax $variant)
+                                        (list (quote-syntax variant-field)
+                                              ...)
+                                        (list (quote-syntax set-variant-field!)
+                                              ...)))
+                ...)))]
        [(_ id thing ...)
         (for-each (lambda (thing)
                     (syntax-case thing ()
@@ -412,6 +468,16 @@
 (define-syntax let: (make-let 'let))
 (define-syntax let*: (make-let 'let*))
 
+(define-syntax shared:
+  (check-top
+   (lambda (stx)
+     (if (eq? (syntax-local-context) 'expression)
+         (syntax-case stx ()
+           [(_ ([id rhs] ...) body)
+            (syntax/loc stx
+              (shared ([id rhs] ...) body))])
+         #`(#%expression #,stx)))))
+
 (define-for-syntax (convert-clauses stx)
   ;; Preserve srcloc of each clause:
   (map (lambda (clause)
@@ -425,8 +491,12 @@
                            stx
                            id)))
                       (syntax->list #'(id ...)))
-            (syntax/loc clause
-              [variant (id ...) (#%expression ans)])]
+            (with-syntax ([$variant (let ([c (syntax-local-value #'variant (lambda () #f))])
+                                      (if (constructor-syntax? c)
+                                          (constructor-syntax-id c)
+                                          #'variants))])
+              (syntax/loc clause
+                [$variant (id ...) (#%expression ans)]))]
            [[else ans]
             (syntax/loc clause
               [else (#%expression ans)])]))
@@ -1055,7 +1125,7 @@
              (let typecheck ([expr tl] [env env])
                (syntax-case expr (: require: define-type: define: define-values: 
                                     define-type-alias
-                                    lambda: begin: local: letrec: let: let*: 
+                                    lambda: begin: local: letrec: let: let*: shared:
                                     begin: cond: case: if: or: and: set!: trace:
                                     type-case: quote:
                                     list vector values: try)
@@ -1142,6 +1212,16 @@
                   (typecheck ((make-let 'let) expr) env)]
                  [(let*: . _)
                   (typecheck ((make-let 'let*) expr) env)]
+                 [(shared: ([id rhs] ...) expr)
+                  (let-values ([(ty env datatypes aliases vars tl-tys)
+                                (typecheck-defns (syntax->list #'((define: id rhs) ...))
+                                                 datatypes
+                                                 aliases
+                                                 env
+                                                 variants
+                                                 #f
+                                                 let-polys)])
+                    (typecheck #'expr env))]
                  [(cond: [ques ans] ...)
                   (let ([res-type (gen-tvar expr)])
                     (for-each

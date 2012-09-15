@@ -159,6 +159,10 @@ Case dispatch on symbols.}
 
 Local binding.}
 
+@defform[(shared ([id expr] ...) expr)]{
+Cyclic- and shared-structure binding.}
+
+
 @defform[(set! id expr)]{
 
 Assignment.}
