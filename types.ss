@@ -6,6 +6,7 @@
 
 (provide gen-tvar make-bool make-num make-sym make-str make-vd make-sexp
          make-arrow make-listof make-boxof make-tupleof make-vectorof make-datatype
+         make-hashof
          to-contract
          create-defn
          make-poly poly? poly-instance at-source instantiate-constructor-at
@@ -28,6 +29,7 @@
 (define-struct (listof type) (element))
 (define-struct (boxof type) (element))
 (define-struct (vectorof type) (element) #:transparent)
+(define-struct (hashof type) (key val))
 (define-struct (tupleof type) (args))
 (define-struct (datatype type) (id args))
 (define-struct (poly type) (tvar type) #:transparent)
@@ -56,6 +58,8 @@
      [(listof? type) #`(listof #,(loop (listof-element type) tvar-names inside-mutable?))]
      [(boxof? type) #`(box/c #,(loop (boxof-element type) tvar-names #t))]
      [(vectorof? type) #`(vectorof #,(loop (vectorof-element type) tvar-names #t))]
+     [(hashof? type) #`(hash/c #,(loop (hashof-key type) tvar-names #t)
+                               #,(loop (hashof-val type) tvar-names #t))]
      [(tupleof? type) #`(vector-immutable/c #,@(map (λ (x) (loop x tvar-names inside-mutable?))
                                                     (tupleof-args type)))]
      [(poly? type) (if enforce-poly?
@@ -114,6 +118,8 @@
    [(listof? t) `(listof ,((type->datum tmap) (listof-element t)))]
    [(boxof? t) `(boxof ,((type->datum tmap) (boxof-element t)))]
    [(vectorof? t) `(vectorof ,((type->datum tmap) (vectorof-element t)))]
+   [(hashof? t) `(hashof ,((type->datum tmap) (hashof-key t))
+                         ,((type->datum tmap) (hashof-val t)))]
    [(tupleof? t) (let ([a (map (type->datum tmap) (tupleof-args t))])
                    (if (null? a)
                        '()
@@ -150,6 +156,11 @@
    [(vectorof? t) (make-vectorof (type-src t)
                                  ((instance old-tvar new-tvar)
                                   (vectorof-element t)))]
+   [(hashof? t) (make-hashof (type-src t)
+                             ((instance old-tvar new-tvar)
+                              (hashof-key t))
+                             ((instance old-tvar new-tvar)
+                              (hashof-val t)))]
    [(tupleof? t) (make-tupleof (type-src t)
                                (map (instance old-tvar new-tvar)
                                     (tupleof-args t)))]
@@ -181,6 +192,10 @@
               [(vectorof? t) (if box-ok?
                                  (loop (vectorof-element t))
                                  null)]
+              [(hashof? t) (if box-ok?
+                               (append (loop (hashof-key t))
+                                       (loop (hashof-val t)))
+                               null)]
               [(tupleof? t) (apply append
                                    (map loop (tupleof-args t)))]
               [(datatype? t) (apply append
@@ -270,6 +285,9 @@
         (loop (boxof-element t))]
        [(vectorof? t)
         (loop (vectorof-element t))]
+       [(hashof? t)
+        (loop (hashof-key t))
+        (loop (hashof-val t))]
        [(tupleof? t)
         (for-each loop (tupleof-args t))]
        [(datatype? t)
@@ -300,6 +318,10 @@
    [(vectorof? t) (make-vectorof
                    (type-src t)
                    (clone (vectorof-element t)))]
+   [(hashof? t) (make-hashof
+                 (type-src t)
+                 (clone (hashof-key t))
+                 (clone (hashof-val t)))]
    [(tupleof? t) (make-tupleof
                   (type-src t)
                   (map clone (tupleof-args t)))]
@@ -398,6 +420,9 @@
                            (simplify!* (boxof-element t)))]
    [(vectorof? t) (make-vectorof (type-src t)
                                  (simplify!* (vectorof-element t)))]
+   [(hashof? t) (make-hashof (type-src t)
+                             (simplify!* (hashof-key t))
+                             (simplify!* (hashof-val t)))]
    [(tupleof? t) (make-tupleof (type-src t)
                                (map simplify!* (tupleof-args t)))]
    [(poly? t) (make-poly (type-src t)
@@ -466,6 +491,9 @@
     (occurs? a (boxof-element b))]
    [(vectorof? b)
     (occurs? a (vectorof-element b))]
+   [(hashof? b)
+    (or (occurs? a (hashof-key b))
+        (occurs? a (hashof-val b)))]
    [(tupleof? b)
     (ormap (lambda (arg) (occurs? a arg))
            (tupleof-args b))]
@@ -544,6 +572,11 @@
           (unless (vectorof? b)
             (raise-typecheck-error expr a b))
           (unify! expr (vectorof-element a) (vectorof-element b))]
+         [(hashof? a)
+          (unless (hashof? b)
+            (raise-typecheck-error expr a b))
+          (unify! expr (hashof-key a) (hashof-key b))
+          (unify! expr (hashof-val a) (hashof-val b))]
          [(tupleof? a)
           (unless (and (tupleof? b)
                        (= (length (tupleof-args a))

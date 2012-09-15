@@ -160,3 +160,15 @@
 
 (test #t (member 1 (list 3 2 1)))
 (test #f (member 6 (list 3 2 1)))
+
+
+(define ht (make-hash))
+(test #f (hash-ref? ht "a"))
+(test/exn (hash-ref ht "a") "no value")
+(test 'ok (hash-ref/k ht "a" (lambda (v) 'oops) (lambda () 'ok)))
+(test (void) (hash-set! ht "a" 1))
+(test #t (hash-ref? ht "a"))
+(test 1 (hash-ref ht "a"))
+(test #f (hash-ref? ht "b"))
+(test (list "a") (hash-keys ht))
+(test (void) (hash-remove! ht "a"))

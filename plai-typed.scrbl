@@ -323,18 +323,29 @@ S-expressions.}
 @defthing[vector-length ((vectorof 'a) -> number)]
 )]{Vector primitives.}
 
+@deftogether[(
+@defthing[make-hash (-> (hashof 'a 'b))]
+@defthing[hash-ref ((hashof 'a 'b) 'a -> 'b)]
+@defthing[hash-ref? ((hashof 'a 'b) 'a -> boolean)]
+@defthing[hash-ref/k ((hashof 'a 'b) 'a ('b -> 'c) (-> 'c) -> 'c)]
+@defthing[hash-set! ((hashof 'a 'b) 'a 'b -> void)]
+@defthing[hash-remove! ((hashof 'a 'b) 'a -> void)]
+@defthing[hash-keys ((hashof 'a 'b) -> (listof 'a))]
+)]{Hash table primitives.}
+
 @defthing[call/cc ((('a -> 'b) -> 'a) -> 'a)]{
 Continuation primitive.}
 
 @deftogether[(
-@defthing[test ('a 'a -> void)]
-@defthing[test/exn ((-> 'a) string -> void)]
+@defform[(test expr expr)]
+@defform[(test/exn expr string-expr)]
 @defthing[print-only-errors (boolean -> void)]
 )]{
-Test primitive forms that, in the case of @racket[test] and @racket[test/exn], do not actually produce a void
-value. Instead, they produce results suitable for automatic display
-through a top-level expression. The @scheme[void] type merely prevents your
-program from using the result.}
+Test primitive forms.  The @racket[test] and @racket[test/exn] forms
+have type @racket[void], although they do not actually produce a void
+value; instead, they produce results suitable for automatic display
+through a top-level expression, and the @scheme[void] type merely
+prevents your program from using the result.}
 
 @defform[(time expr)]{
 Shows the time taken to evaluate @racket[expr].}
@@ -371,6 +382,7 @@ Type for the empty tuple.}
 @defform[(listof type)]{Types for lists of elements.}
 @defform[(boxof type)]{Types for mutable boxes.}
 @defform[(vectorof type)]{Types for vectors of elements.}
+@defform[(hashof type type)]{Types for hash tables.}
 
 @; ----------------------------------------
 

@@ -59,6 +59,10 @@
          string-append to-string
          display
 
+         (rename-out [hash-ref: hash-ref])
+         make-hash hash-ref/k hash-ref?
+         hash-set! hash-remove! hash-keys
+
          s-exp-symbol? s-exp->symbol symbol->s-exp
          s-exp-number? s-exp->number number->s-exp
          s-exp-string? s-exp->string string->s-exp
@@ -82,9 +86,25 @@
          (rename-out [listof: listof]
                      [boxof: boxof]
                      [vectorof: vectorof]
+                     [hashof: hashof]
                      [void: void]))
 
 (define (symbol=? a b) (eq? a b))
+
+(define not-there (gensym))
+
+(define (hash-ref: ht k)
+  (define v (hash-ref ht k not-there))
+  (if (eq? v not-there)
+      (error 'hash-ref "no value found for key: ~e" k) ; `error' from `plai'
+      v))
+(define (hash-ref? ht k)
+  (not (eq? not-there (hash-ref ht k not-there))))
+(define (hash-ref/k ht k success failure)
+  (define v (hash-ref ht k not-there))
+  (if (eq? v not-there)
+      (failure)
+      (success v)))
 
 (define (s-exp-symbol? s) (symbol? s))
 (define (s-exp->symbol s) (if (symbol? s) s (error 's-exp->symbol "not a symbol: ~e" s)))
@@ -134,6 +154,7 @@
 (define-syntax listof: type)
 (define-syntax boxof: type)
 (define-syntax vectorof: type)
+(define-syntax hashof: type)
 (define void: void) ; allow as a function
 
 (define (member: a l)
@@ -146,7 +167,7 @@
            (free-identifier=? a i))
          (syntax->list
           #'(: number boolean symbol s-expression
-               string: -> listof:
+               string: -> listof: hashof:
                boxof: vectorof:
                void:))))
 
@@ -832,7 +853,7 @@
                                (lambda (seen tenv t)
                                  (let loop ([t t])
                                    (syntax-case t (number boolean symbol string: s-expression
-                                                          gensym listof: boxof: void: -> 
+                                                          gensym listof: boxof: hashof: void: -> 
                                                           vectorof: quote: *)
                                      [(quote: id)
                                       (identifier? #'id)
@@ -863,6 +884,8 @@
                                       (make-boxof t (loop #'elem))]
                                      [(vectorof: elem)
                                       (make-vectorof t (loop #'elem))]
+                                     [(hashof: key val)
+                                      (make-hashof t (loop #'key) (loop #'val))]
                                      [(a * more ...)
                                       (let ([m (syntax->list #'(more ...))])
                                         (let loop ([m m])
@@ -1466,94 +1489,133 @@
 (define-for-syntax (do-original-typecheck tl)
   (let ([datatypes null]
         [aliases null]
-        [init-env (let ([nn->n (make-arrow #f 
+        [init-env (let ([NN->N (make-arrow #f 
                                            (list (make-num #f)
                                                  (make-num #f))
                                            (make-num #f))]
-                        [n->n (make-arrow #f 
+                        [N->N (make-arrow #f 
                                           (list (make-num #f))
                                           (make-num #f))]
-                        [nn->b (make-arrow #f 
+                        [NN->B (make-arrow #f 
                                            (list (make-num #f)
                                                  (make-num #f))
                                            (make-bool #f))]
-                        [n->b (make-arrow #f 
+                        [N->B (make-arrow #f 
                                           (list (make-num #f))
-                                          (make-bool #f))])
+                                          (make-bool #f))]
+                        [N (make-num #f)]
+                        [B (make-bool #f)]
+                        [STR (make-str #f)]
+                        [SYM (make-sym #f)])
+                    (define-syntax-rule (POLY a e)
+                      (let ([a (gen-tvar #f)]) (make-poly #f a e)))
                     (list
                      (cons #'error
-                           (let ([a (gen-tvar #f)])
-                             (make-poly
-                              #f
-                              a
-                              (make-arrow #f
-                                          (list (make-sym #f)
-                                                (make-str #f))
-                                          a))))
+                           (POLY a
+                                 (make-arrow #f
+                                             (list SYM
+                                                   STR)
+                                             a)))
                      (cons #'void:
                            (make-arrow #f null (make-vd #f)))
                      (cons #'not
                            (make-arrow #f
-                                       (list (make-bool #f))
-                                       (make-bool #f)))
-                     (cons #'+ nn->n)
-                     (cons #'- nn->n)
-                     (cons #'/ nn->n)
-                     (cons #'* nn->n)
-                     (cons #'= nn->b)
-                     (cons #'< nn->b)
-                     (cons #'> nn->b)
-                     (cons #'<= nn->b)
-                     (cons #'>= nn->b)
-                     (cons #'min nn->n)
-                     (cons #'max nn->n)
-                     (cons #'modulo nn->n)
-                     (cons #'remainder nn->n)
-                     (cons #'floor n->n)
-                     (cons #'ceiling n->n)
-                     (cons #'add1 n->n)
-                     (cons #'sub1 n->n)
-                     (cons #'zero? n->b)
-                     (cons #'odd? n->b)
-                     (cons #'even? n->b)
+                                       (list B)
+                                       B))
+                     (cons #'+ NN->N)
+                     (cons #'- NN->N)
+                     (cons #'/ NN->N)
+                     (cons #'* NN->N)
+                     (cons #'= NN->B)
+                     (cons #'< NN->B)
+                     (cons #'> NN->B)
+                     (cons #'<= NN->B)
+                     (cons #'>= NN->B)
+                     (cons #'min NN->N)
+                     (cons #'max NN->N)
+                     (cons #'modulo NN->N)
+                     (cons #'remainder NN->N)
+                     (cons #'floor N->N)
+                     (cons #'ceiling N->N)
+                     (cons #'add1 N->N)
+                     (cons #'sub1 N->N)
+                     (cons #'zero? N->B)
+                     (cons #'odd? N->B)
+                     (cons #'even? N->B)
                      (cons #'symbol=? (make-arrow #f 
-                                                  (list (make-sym #f)
-                                                        (make-sym #f))
-                                                  (make-bool #f)))
+                                                  (list SYM
+                                                        SYM)
+                                                  B))
                      (cons #'string=? (make-arrow #f 
-                                                  (list (make-str #f)
-                                                        (make-str #f))
-                                                  (make-bool #f)))
+                                                  (list STR
+                                                        STR)
+                                                  B))
+                     (cons #'make-hash (POLY a (POLY b (make-arrow #f
+                                                                   (list)
+                                                                   (make-hashof #f a b)))))
+                     (cons #'hash-ref: (POLY a (POLY b (make-arrow #f
+                                                                   (list (make-hashof #f a b)
+                                                                         a)
+                                                                   b))))
+                     (cons #'hash-ref/k (POLY a 
+                                              (POLY b 
+                                                    (POLY c
+                                                          (make-arrow #f
+                                                                      (list (make-hashof #f a b)
+                                                                            a
+                                                                            (make-arrow #f
+                                                                                        (list b)
+                                                                                        c)
+                                                                            (make-arrow #f
+                                                                                        (list)
+                                                                                        c))
+                                                                      c)))))
+                     (cons #'hash-ref? (POLY a (POLY b (make-arrow #f
+                                                                   (list (make-hashof #f a b)
+                                                                         a)
+                                                                   B))))
+                     (cons #'hash-set! (POLY a (POLY b (make-arrow #f
+                                                                   (list (make-hashof #f a b)
+                                                                         a
+                                                                         b)
+                                                                   (make-vd #f)))))
+                     (cons #'hash-remove! (POLY a (POLY b (make-arrow #f
+                                                                      (list (make-hashof #f a b)
+                                                                            a)
+                                                                      (make-vd #f)))))
+                     (cons #'hash-keys (POLY a (POLY b (make-arrow #f
+                                                                   (list (make-hashof #f a b))
+                                                                   (make-listof #f a)))))
                      (cons #'s-exp-symbol? (make-arrow #f 
                                                        (list (make-sexp #f))
-                                                       (make-bool #f)))
+                                                       B))
                      (cons #'s-exp->symbol (make-arrow #f 
                                                        (list (make-sexp #f))
-                                                       (make-sym #f)))
+                                                       SYM))
                      (cons #'symbol->s-exp (make-arrow #f 
-                                                       (list (make-sym #f))
+                                                       (list SYM)
                                                        (make-sexp #f)))
                      (cons #'s-exp-number? (make-arrow #f 
                                                        (list (make-sexp #f))
-                                                       (make-bool #f)))
+                                                       B))
                      (cons #'s-exp->number (make-arrow #f 
                                                        (list (make-sexp #f))
-                                                       (make-num #f)))
+                                                       N))
                      (cons #'number->s-exp (make-arrow #f 
-                                                       (list (make-num #f))
+                                                       (list N)
                                                        (make-sexp #f)))
                      (cons #'s-exp-string? (make-arrow #f 
                                                        (list (make-sexp #f))
-                                                       (make-bool #f)))
+                                                       B))
                      (cons #'s-exp->string (make-arrow #f 
                                                        (list (make-sexp #f))
-                                                       (make-str #f)))
+                                                       STR))
                      (cons #'string->s-exp (make-arrow #f 
-                                                       (list (make-str #f))
+                                                       (list STR)
                                                        (make-sexp #f)))
                      (cons #'s-exp-list? (make-arrow #f 
                                                      (list (make-sexp #f))
-                                                     (make-bool #f)))
+                                                     B))
                      (cons #'s-exp->list (make-arrow #f 
                                                        (list (make-sexp #f))
                                                        (make-listof #f (make-sexp #f))))
@@ -1561,310 +1623,165 @@
                                                      (list (make-listof #f (make-sexp #f)))
                                                      (make-sexp #f)))
                      (cons #'read: (make-arrow #f null (make-sexp #f)))
-                     (cons #'equal? (let ([a (gen-tvar #f)])
-                                      (make-poly #f
-                                                 a
-                                                 (make-arrow #f 
-                                                             (list a a)
-                                                             (make-bool #f)))))
-                     (cons #'eq? (let ([a (gen-tvar #f)])
-                                   (make-poly #f
-                                              a
-                                              (make-arrow #f 
-                                                          (list a a)
-                                                          (make-bool #f)))))
-                     (cons #'test (let ([a (gen-tvar #f)])
-                                    (make-poly #f
-                                               a
-                                               (make-arrow #f 
-                                                           (list a a)
-                                                           (make-vd #f)))))
-                     (cons #'test/exn (let ([a (gen-tvar #f)])
-                                        (make-poly #f
-                                                   a
-                                                   (make-arrow #f 
-                                                               (list a
-                                                                     (make-str #f))
-                                                               (make-vd #f)))))
+                     (cons #'equal? (POLY a (make-arrow #f 
+                                                        (list a a)
+                                                        B)))
+                     (cons #'eq? (POLY a (make-arrow #f 
+                                                     (list a a)
+                                                     B)))
+                     (cons #'test (POLY a (make-arrow #f 
+                                                      (list a a)
+                                                      (make-vd #f))))
+                     (cons #'test/exn (POLY a (make-arrow #f 
+                                                          (list a
+                                                                STR)
+                                                          (make-vd #f))))
                      (cons #'print-only-errors (make-arrow #f 
-                                                           (list (make-bool #f))
+                                                           (list B)
                                                            (make-vd #f)))
-                     (cons #'call/cc (let ([a (gen-tvar #f)]
-                                           [b (gen-tvar #f)])
-                                       (make-poly #f
-                                                  a
-                                                  (make-poly #f
-                                                             b
-                                                             (make-arrow #f
-                                                                         (list (make-arrow
-                                                                                #f
-                                                                                (list (make-arrow
-                                                                                       #f
-                                                                                       (list a)
-                                                                                       b))
-                                                                                a))
-                                                                         a)))))
-                     (cons #'true (make-bool #f))
-                     (cons #'false (make-bool #f))                       
-                     (cons #'empty (let ([a (gen-tvar #f)])
-                                     (make-poly
-                                      #f
-                                      a
-                                      (make-listof #f a))))
-                     (cons #'cons (let ([a (gen-tvar #f)])
-                                    (make-poly
-                                     #f
-                                     a
-                                     (make-arrow #f
-                                                 (list a (make-listof #f a))
-                                                 (make-listof #f a)))))
-                     (cons #'cons? (let ([a (gen-tvar #f)])
-                                     (make-poly
-                                      #f
-                                      a
-                                      (make-arrow #f
-                                                  (list (make-listof #f a))
-                                                  (make-bool #f)))))
-                     (cons #'empty? (let ([a (gen-tvar #f)])
-                                      (make-poly
-                                       #f
-                                       a
+                     (cons #'call/cc (POLY a
+                                           (POLY b
+                                                 (make-arrow #f
+                                                             (list (make-arrow
+                                                                    #f
+                                                                    (list (make-arrow
+                                                                           #f
+                                                                           (list a)
+                                                                           b))
+                                                                    a))
+                                                             a))))
+                     (cons #'true B)
+                     (cons #'false B)                       
+                     (cons #'empty (POLY a (make-listof #f a)))
+                     (cons #'cons (POLY a (make-arrow #f
+                                                      (list a (make-listof #f a))
+                                                      (make-listof #f a))))
+                     (cons #'cons? (POLY a (make-arrow #f
+                                                       (list (make-listof #f a))
+                                                       B)))
+                     (cons #'empty? (POLY a (make-arrow #f
+                                                        (list (make-listof #f a))
+                                                        B)))
+                     (cons #'first (POLY a (make-arrow #f
+                                                       (list (make-listof #f a))
+                                                       a)))
+                     (cons #'rest (POLY a (make-arrow #f
+                                                      (list (make-listof #f a))
+                                                      (make-listof #f a))))
+                     (cons #'second (POLY a
                                        (make-arrow #f
                                                    (list (make-listof #f a))
-                                                   (make-bool #f)))))
-                     (cons #'first (let ([a (gen-tvar #f)])
-                                     (make-poly
-                                      #f
-                                      a
-                                      (make-arrow #f
-                                                  (list (make-listof #f a))
-                                                  a))))
-                     (cons #'rest (let ([a (gen-tvar #f)])
-                                    (make-poly
-                                     #f
-                                     a
-                                     (make-arrow #f
-                                                 (list (make-listof #f a))
-                                                 (make-listof #f a)))))
-                     (cons #'second (let ([a (gen-tvar #f)])
-                                      (make-poly
-                                       #f
-                                       a
-                                       (make-arrow #f
-                                                   (list (make-listof #f a))
-                                                   a))))
-                     (cons #'third (let ([a (gen-tvar #f)])
-                                     (make-poly
-                                      #f
-                                      a
-                                      (make-arrow #f
-                                                  (list (make-listof #f a))
-                                                  a))))
-                     (cons #'fourth (let ([a (gen-tvar #f)])
-                                      (make-poly
-                                       #f
-                                       a
-                                       (make-arrow #f
-                                                   (list (make-listof #f a))
-                                                   a))))
-                     (cons #'list-ref (let ([a (gen-tvar #f)])
-                                        (make-poly
-                                         #f
-                                         a
-                                         (make-arrow #f
-                                                     (list (make-listof #f a)
-                                                           (make-num #f))
-                                                     a))))
-                     (cons #'build-list (let ([a (gen-tvar #f)])
-                                          (make-poly
-                                           #f
-                                           a
-                                           (make-arrow #f
-                                                       (list (make-num #f)
-                                                             (make-arrow #f
-                                                                         (list (make-num #f))
-                                                                         a))
-                                                       (make-listof #f a)))))
-                     (cons #'length (let ([a (gen-tvar #f)])
-                                      (make-poly
-                                       #f
-                                       a
-                                       (make-arrow #f
-                                                   (list (make-listof #f a))
-                                                   (make-num #f)))))
-                     (cons #'map (let ([a (gen-tvar #f)]
-                                       [b (gen-tvar #f)])
-                                   (make-poly
-                                    #f
-                                    a
-                                    (make-poly
-                                     #f
-                                     b
-                                     (make-arrow #f
-                                                 (list (make-arrow #f (list a) b)
-                                                       (make-listof #f a))
-                                                 (make-listof #f b))))))
-                     (cons #'map2 (let ([a (gen-tvar #f)]
-                                        [b (gen-tvar #f)]
-                                        [c (gen-tvar #f)])
-                                    (make-poly
-                                     #f
-                                     a
-                                     (make-poly
-                                      #f
-                                      b
-                                      (make-poly
-                                       #f
-                                       c
-                                       (make-arrow #f
-                                                   (list (make-arrow #f (list a b) c)
-                                                         (make-listof #f a)
-                                                         (make-listof #f b))
-                                                   (make-listof #f c)))))))
-                     (cons #'member: (let ([a (gen-tvar #f)])
-                                       (make-poly
-                                        #f
-                                        a
-                                        (make-arrow #f
-                                                    (list a
-                                                          (make-listof #f a))
-                                                    (make-bool #f)))))
-                     (cons #'filter (let ([a (gen-tvar #f)])
-                                      (make-poly
-                                       #f
-                                       a
-                                       (make-arrow #f
-                                                   (list (make-arrow #f 
-                                                                     (list a) 
-                                                                     (make-bool #f))
-                                                         (make-listof #f a))
-                                                   (make-listof #f a)))))
-                     (cons #'foldl (let ([a (gen-tvar #f)]
-                                         [b (gen-tvar #f)])
-                                     (make-poly
-                                      #f
-                                      a
-                                      (make-poly
-                                       #f
-                                       b
-                                       (make-arrow #f
-                                                   (list (make-arrow #f (list a b) b)
-                                                         b
-                                                         (make-listof #f a))
-                                                   b)))))
-                     (cons #'foldr (let ([a (gen-tvar #f)]
-                                         [b (gen-tvar #f)])
-                                     (make-poly
-                                      #f
-                                      a
-                                      (make-poly
-                                       #f
-                                       b
-                                       (make-arrow #f
-                                                   (list (make-arrow #f (list a b) b)
-                                                         b
-                                                         (make-listof #f a))
-                                                   b)))))
-                     (cons #'reverse (let ([a (gen-tvar #f)])
-                                       (make-poly
-                                        #f
-                                        a
-                                        (make-arrow #f
-                                                    (list (make-listof #f a))
-                                                    (make-listof #f a)))))
-                     (cons #'append (let ([a (gen-tvar #f)])
-                                      (make-poly
-                                       #f
-                                       a
-                                       (make-arrow #f
-                                                   (list (make-listof #f a)
-                                                         (make-listof #f a))
-                                                   (make-listof #f a)))))
-                     (cons #'box (let ([a (gen-tvar #f)])
-                                   (make-poly
-                                    #f
-                                    a
-                                    (make-arrow #f
-                                                (list a)
-                                                (make-boxof #f a)))))
-                     (cons #'unbox (let ([a (gen-tvar #f)])
-                                     (make-poly
-                                      #f
-                                      a
-                                      (make-arrow #f
-                                                  (list (make-boxof #f a))
-                                                  a))))
-                     (cons #'set-box! (let ([a (gen-tvar #f)])
-                                        (make-poly
-                                         #f
-                                         a
-                                         (make-arrow #f
-                                                     (list (make-boxof #f a) a)
-                                                     (make-vd #f)))))
-                     (cons #'make-vector (let ([a (gen-tvar #f)])
-                                           (make-poly
-                                            #f
-                                            a
-                                            (make-arrow #f
-                                                        (list (make-num #f)
-                                                              a)
-                                                        (make-vectorof #f a)))))
-                     (cons #'vector-ref (let ([a (gen-tvar #f)])
-                                          (make-poly
-                                           #f
-                                           a
-                                           (make-arrow #f
-                                                       (list (make-vectorof #f a)
-                                                             (make-num #f))
-                                                       a))))
-                     (cons #'vector-set! (let ([a (gen-tvar #f)])
-                                           (make-poly
-                                            #f
-                                            a
-                                            (make-arrow #f
-                                                        (list (make-vectorof #f a)
-                                                              (make-num #f)
-                                                              a)
-                                                        (make-vd #f)))))
-                     (cons #'vector-length (let ([a (gen-tvar #f)])
-                                             (make-poly
-                                              #f
-                                              a
-                                              (make-arrow #f
-                                                          (list (make-vectorof #f a))
-                                                          (make-num #f)))))
+                                                   a)))
+                     (cons #'third (POLY a (make-arrow #f
+                                                       (list (make-listof #f a))
+                                                       a)))
+                     (cons #'fourth (POLY a (make-arrow #f
+                                                        (list (make-listof #f a))
+                                                        a)))
+                     (cons #'list-ref (POLY a (make-arrow #f
+                                                          (list (make-listof #f a)
+                                                                N)
+                                                          a)))
+                     (cons #'build-list (POLY a (make-arrow #f
+                                                            (list N
+                                                                  (make-arrow #f
+                                                                              (list N)
+                                                                              a))
+                                                            (make-listof #f a))))
+                     (cons #'length (POLY a (make-arrow #f
+                                                        (list (make-listof #f a))
+                                                        N)))
+                     (cons #'map (POLY a
+                                       (POLY b
+                                             (make-arrow #f
+                                                         (list (make-arrow #f (list a) b)
+                                                               (make-listof #f a))
+                                                         (make-listof #f b)))))
+                     (cons #'map2 (POLY a
+                                        (POLY b
+                                              (POLY c
+                                                    (make-arrow #f
+                                                                (list (make-arrow #f (list a b) c)
+                                                                      (make-listof #f a)
+                                                                      (make-listof #f b))
+                                                                (make-listof #f c))))))
+                     (cons #'member: (POLY a (make-arrow #f
+                                                         (list a
+                                                               (make-listof #f a))
+                                                         B)))
+                     (cons #'filter (POLY a (make-arrow #f
+                                                        (list (make-arrow #f 
+                                                                          (list a) 
+                                                                          B)
+                                                              (make-listof #f a))
+                                                        (make-listof #f a))))
+                     (cons #'foldl (POLY a
+                                         (POLY b
+                                               (make-arrow #f
+                                                           (list (make-arrow #f (list a b) b)
+                                                                 b
+                                                                 (make-listof #f a))
+                                                           b))))
+                     (cons #'foldr (POLY a
+                                         (POLY b
+                                               (make-arrow #f
+                                                           (list (make-arrow #f (list a b) b)
+                                                                 b
+                                                                 (make-listof #f a))
+                                                           b))))
+                     (cons #'reverse (POLY a (make-arrow #f
+                                                         (list (make-listof #f a))
+                                                         (make-listof #f a))))
+                     (cons #'append (POLY a (make-arrow #f
+                                                        (list (make-listof #f a)
+                                                              (make-listof #f a))
+                                                        (make-listof #f a))))
+                     (cons #'box (POLY a (make-arrow #f
+                                                     (list a)
+                                                     (make-boxof #f a))))
+                     (cons #'unbox (POLY a (make-arrow #f
+                                                       (list (make-boxof #f a))
+                                                       a)))
+                     (cons #'set-box! (POLY a (make-arrow #f
+                                                          (list (make-boxof #f a) a)
+                                                          (make-vd #f))))
+                     (cons #'make-vector (POLY a (make-arrow #f
+                                                             (list N a)
+                                                             (make-vectorof #f a))))
+                     (cons #'vector-ref (POLY a (make-arrow #f
+                                                            (list (make-vectorof #f a)
+                                                                  N)
+                                                            a)))
+                     (cons #'vector-set! (POLY a (make-arrow #f
+                                                             (list (make-vectorof #f a)
+                                                                   N
+                                                                   a)
+                                                             (make-vd #f))))
+                     (cons #'vector-length (POLY a (make-arrow #f
+                                                               (list (make-vectorof #f a))
+                                                               N)))
 
                      (cons #'string-append (make-arrow #f 
-                                                       (list (make-str #f)
-                                                             (make-str #f))
-                                                       (make-str #f)))
+                                                       (list STR STR)
+                                                       STR))
                      (cons #'string->symbol (make-arrow #f 
-                                                        (list (make-str #f))
-                                                        (make-sym #f)))
+                                                        (list STR)
+                                                        SYM))
                      (cons #'symbol->string (make-arrow #f 
-                                                        (list (make-sym #f))
-                                                        (make-str #f)))
-                     (cons #'identity (let ([a (gen-tvar #f)])
-                                        (make-poly
-                                         #f
-                                         a
+                                                        (list SYM)
+                                                        STR))
+                     (cons #'identity (POLY a
                                          (make-arrow #f
                                                      (list a)
-                                                     a))))
-                     (cons #'to-string (let ([a (gen-tvar #f)])
-                                         (make-poly
-                                          #f
-                                          a
-                                          (make-arrow #f
-                                                      (list a)
-                                                      (make-str #f)))))
-                     (cons #'display (let ([a (gen-tvar #f)])
-                                       (make-poly
-                                        #f
-                                        a
-                                        (make-arrow #f
-                                                    (list a)
-                                                    (make-vd #f)))))
+                                                     a)))
+                     (cons #'to-string (POLY a
+                                             (make-arrow #f
+                                                         (list a)
+                                                         STR)))
+                     (cons #'display (POLY a
+                                           (make-arrow #f
+                                                       (list a)
+                                                       (make-vd #f))))
                      ))])
     (typecheck-defns tl datatypes aliases init-env null #f #f)))
 
