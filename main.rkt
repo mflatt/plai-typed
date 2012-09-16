@@ -10,6 +10,8 @@
          racket/pretty
          racket/list
          racket/bool
+         racket/local
+         racket/shared
          (only-in racket/contract/base contract-out)
          racket/trace
          (for-syntax racket/base
