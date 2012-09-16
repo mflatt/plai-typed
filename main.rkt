@@ -1,4 +1,4 @@
-#lang racket
+#lang racket/base
 
 (require (only-in plai
                   define-type
@@ -7,8 +7,13 @@
                   test/exn
                   print-only-errors
                   error)
+         racket/pretty
+         racket/list
+         racket/bool
+         (only-in racket/contract/base contract-out)
          racket/trace
-         (for-syntax racket/list
+         (for-syntax racket/base
+                     racket/list
                      "types.ss"
                      racket/struct-info))
 
@@ -89,8 +94,6 @@
                      [hashof: hashof]
                      [void: void]))
 
-(define (symbol=? a b) (eq? a b))
-
 (define not-there (gensym))
 
 (define (hash-ref: ht k)
@@ -118,6 +121,8 @@
 (define (s-exp-list? s) (list? s))
 (define (s-exp->list s) (if (list? s) s (error 's-exp->list "not a list: ~e" s)))
 (define (list->s-exp s) s)
+
+(define (identity x) x)
 
 (define (read:)
   (define v (read))
@@ -1886,3 +1891,9 @@
                  (cdr (syntax-e stx))))
      stx
      stx)))
+
+;; ----------------------------------------
+
+(module reader syntax/module-reader
+  plai-typed)
+
