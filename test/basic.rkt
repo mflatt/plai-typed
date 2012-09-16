@@ -92,6 +92,10 @@
                                               [ordinal (n) n]))
          (v (lambda (x) (+ 1 x)))))
 
+(test 5 (type-case (T number) i
+          [ordinal (n) n]
+          [else 5]))
+
 (test #t (letrec ([even? (lambda (n)
                            (if (= 0 n)
                                #t
