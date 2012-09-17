@@ -5,29 +5,16 @@
 
 @defmodulelang[plai-typed]
 
-The PLAI Typed language is a statically typed language that resembles
-the PLAI language, though with a much smaller set of syntactic forms
-and built-in functions.
-
-The PLAI Typed language does @emph{not} have an entry in DrScheme's
-@onscreen{Choose Language} dialog. Instead, choose the
-@onscreen{Module} language, and write your program like this:
-
-@verbatim[#:indent 2]{
-  #lang plai-typed
-  ... all code goes here ....
-}
-
-The default output style of the @onscreen{Module} language does not
-match the PLAI style. To fix it: In the @onscreen{Choose Language}
-dialog, after you select the @onscreen{Module} language, click
-@onscreen{Show Details}, and the select @onscreen{Constructor} output
-style.
+The @racketmodname[plai-typed] language is a statically typed language
+that resembles the @racketmodname[plai] language, though with a
+smaller set of syntactic forms and built-in functions.
 
 The body of a @schememodname[plai-typed] module is a sequence of
-definitions and expressions. Like the ordinary PLAI languages, 
-these modules also export all top-level definitions, but unlike them,
-they have contracts (matching the types).
+definitions and expressions. Like the @racketmodname[plai] languages
+the module exports all top-level definitions. When a
+@racketmodname[plai-typed] module is imported into a module that does
+not use @racketmodname[plai-typed], the imports have contracts
+(matching reflecting the exported bindings' types).
 
 @; --------------------------------------------------
 
