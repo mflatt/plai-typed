@@ -165,14 +165,37 @@
 (test #t (member 1 (list 3 2 1)))
 (test #f (member 6 (list 3 2 1)))
 
+(test 1 (type-case (optionof 'a) (none)
+          [none () 1]
+          [some (v) 2]))
+(test 5 (type-case (optionof 'a) (some 5)
+          [none () 1]
+          [some (v) v]))
 
-(define ht (make-hash))
-(test #f (hash-ref? ht "a"))
-(test/exn (hash-ref ht "a") "no value")
-(test 'ok (hash-ref/k ht "a" (lambda (v) 'oops) (lambda () 'ok)))
+(define sid (some (lambda (x) x)))
+(test 5 ((some-v sid) 5))
+(test "5" ((some-v sid) "5"))
+
+(define ht (make-hash (list)))
+(test (none) (hash-ref ht "a"))
 (test (void) (hash-set! ht "a" 1))
-(test #t (hash-ref? ht "a"))
-(test 1 (hash-ref ht "a"))
-(test #f (hash-ref? ht "b"))
+(test (some 1) (hash-ref ht "a"))
 (test (list "a") (hash-keys ht))
 (test (void) (hash-remove! ht "a"))
+(define ht2 (make-hash (list (values 1 'a) (values 3 'b))))
+(test (some 'a) (hash-ref ht2 1))
+(test (some 'b) (hash-ref ht2 3))
+(test (none) (hash-ref ht2 5))
+(test 4 (let ([l (hash-keys ht2)])
+          (+ (first l) (second l))))
+
+(define-type linked-list
+  [llnode (s : string)
+          (next : (optionof linked-list))])
+
+(define lls (shared ([x (llnode "a" (some x))]
+                     [y (some (llnode "b" (none)))])
+              (list x (some-v y))))
+(test "a" (llnode-s (some-v (llnode-next (first lls)))))
+(test "b" (llnode-s (second lls)))
+

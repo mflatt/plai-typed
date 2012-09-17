@@ -66,8 +66,8 @@
          string-append to-string
          display
 
-         (rename-out [hash-ref: hash-ref])
-         make-hash hash-ref/k hash-ref?
+         (rename-out [make-hash: make-hash]
+                     [hash-ref: hash-ref])
          hash-set! hash-remove! hash-keys
 
          s-exp-symbol? s-exp->symbol symbol->s-exp
@@ -94,22 +94,26 @@
                      [boxof: boxof]
                      [vectorof: vectorof]
                      [hashof: hashof]
-                     [void: void]))
+                     [void: void])
+
+         optionof none some some-v none? some?)
+
+(define-type optionof
+  [none]
+  [some (v (lambda (x) #t))])
 
 (define not-there (gensym))
+
+(define (make-hash: l)
+  (make-hash (for/list ([v (in-list l)])
+               (cons (vector-ref v 0)
+                     (vector-ref v 1)))))
 
 (define (hash-ref: ht k)
   (define v (hash-ref ht k not-there))
   (if (eq? v not-there)
-      (error 'hash-ref "no value found for key: ~e" k) ; `error' from `plai'
-      v))
-(define (hash-ref? ht k)
-  (not (eq? not-there (hash-ref ht k not-there))))
-(define (hash-ref/k ht k success failure)
-  (define v (hash-ref ht k not-there))
-  (if (eq? v not-there)
-      (failure)
-      (success v)))
+      (none)
+      (some v)))
 
 (define (s-exp-symbol? s) (symbol? s))
 (define (s-exp->symbol s) (if (symbol? s) s (error 's-exp->symbol "not a symbol: ~e" s)))
@@ -534,7 +538,7 @@
             (with-syntax ([$variant (let ([c (syntax-local-value #'variant (lambda () #f))])
                                       (if (constructor-syntax? c)
                                           (constructor-syntax-id c)
-                                          #'variants))])
+                                          #'variant))])
               (syntax/loc clause
                 [$variant (id ...) (#%expression ans)]))]
            [[else ans]
@@ -859,7 +863,7 @@
                                  (let loop ([t t])
                                    (syntax-case t (number boolean symbol string: s-expression
                                                           gensym listof: boxof: hashof: void: -> 
-                                                          vectorof: quote: *)
+                                                          vectorof: quote: * optionof)
                                      [(quote: id)
                                       (identifier? #'id)
                                       (let ([a (ormap (lambda (p)
@@ -908,6 +912,8 @@
                                                         (cons (loop (car m))
                                                               (ploop (cddr m)))])))]
                                      [() (make-tupleof t null)]
+                                     [(optionof type)
+                                      (make-datatype t #'optionof (list (loop #'type)))]
                                      [(id type0 type ...)
                                       (let ([types (syntax->list #'(type0 type ...))])
                                         (or (and (identifier? #'id)
@@ -1029,7 +1035,7 @@
                            tl))]
          [is-value? (lambda (expr)
                       (let loop ([expr expr])
-                        (syntax-case expr (lambda: list values: cons empty quote:)
+                        (syntax-case expr (lambda: list values: cons empty quote: none some)
                           [(lambda: . _) #t]
                           [(values: a ...)
                            (andmap loop (syntax->list #'(a ...)))]
@@ -1044,6 +1050,8 @@
                                          (free-identifier=? #'id (car v)))
                                        variants))
                            (andmap loop (syntax->list #'(a ...)))]
+                          [(none) #t]
+                          [(some e) (loop #'e)]
                           [(quote: a) #t]
                           [_ (or (string? (syntax-e expr))
                                  (number? (syntax-e expr))
@@ -1555,30 +1563,17 @@
                                                   (list STR
                                                         STR)
                                                   B))
-                     (cons #'make-hash (POLY a (POLY b (make-arrow #f
-                                                                   (list)
-                                                                   (make-hashof #f a b)))))
+                     (cons #'make-hash: (POLY a (POLY b (make-arrow #f
+                                                                    (list (make-listof 
+                                                                           #f
+                                                                           (make-tupleof
+                                                                            #f
+                                                                            (list a b))))
+                                                                    (make-hashof #f a b)))))
                      (cons #'hash-ref: (POLY a (POLY b (make-arrow #f
                                                                    (list (make-hashof #f a b)
                                                                          a)
-                                                                   b))))
-                     (cons #'hash-ref/k (POLY a 
-                                              (POLY b 
-                                                    (POLY c
-                                                          (make-arrow #f
-                                                                      (list (make-hashof #f a b)
-                                                                            a
-                                                                            (make-arrow #f
-                                                                                        (list b)
-                                                                                        c)
-                                                                            (make-arrow #f
-                                                                                        (list)
-                                                                                        c))
-                                                                      c)))))
-                     (cons #'hash-ref? (POLY a (POLY b (make-arrow #f
-                                                                   (list (make-hashof #f a b)
-                                                                         a)
-                                                                   B))))
+                                                                   (make-datatype #f #'optionof (list b))))))
                      (cons #'hash-set! (POLY a (POLY b (make-arrow #f
                                                                    (list (make-hashof #f a b)
                                                                          a
@@ -1787,8 +1782,30 @@
                                            (make-arrow #f
                                                        (list a)
                                                        (make-vd #f))))
-                     ))])
-    (typecheck-defns tl datatypes aliases init-env null #f #f)))
+                     (cons #'none (POLY a (make-arrow #f 
+                                                      (list) 
+                                                      (make-datatype #f #'optionof (list a)))))
+                     (cons #'some (POLY a (make-arrow #f 
+                                                      (list a) 
+                                                      (make-datatype #f #'optionof (list a)))))
+                     (cons #'none? (POLY a (make-arrow #f 
+                                                      (list
+                                                       (make-datatype #f #'optionof (list a)))
+                                                      B)))
+                     (cons #'some (POLY a (make-arrow #f 
+                                                      (list
+                                                       (make-datatype #f #'optionof (list a)))
+                                                      B)))
+                     (cons #'some-v (POLY a (make-arrow #f 
+                                                        (list
+                                                         (make-datatype #f #'optionof (list a)))
+                                                        a)))
+                     ))]
+        [init-variants (list
+                        (cons #'none (list))
+                        (cons #'some (list (let ([a (gen-tvar #f)])
+                                             (make-poly #f a a)))))])
+    (typecheck-defns tl datatypes aliases init-env init-variants #f #f)))
 
 (define-syntax (typecheck-and-provide stx)
   (let-values ([(tys e2 d2 a2 vars tl-types) 

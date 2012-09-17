@@ -190,7 +190,7 @@ Builds a vector. All @scheme[elem]s must have the same type.}
 
 @defform[(values elem ...)]{
 
-Types multiple values into one; the type of each @scheme[elem] is
+Combines multiple values into one; the type of each @scheme[elem] is
 independent. Match a @scheme[values] result using
 @scheme[define-values].}
 
@@ -324,14 +324,21 @@ S-expressions.}
 )]{Vector primitives.}
 
 @deftogether[(
-@defthing[make-hash (-> (hashof 'a 'b))]
-@defthing[hash-ref ((hashof 'a 'b) 'a -> 'b)]
-@defthing[hash-ref? ((hashof 'a 'b) 'a -> boolean)]
-@defthing[hash-ref/k ((hashof 'a 'b) 'a ('b -> 'c) (-> 'c) -> 'c)]
+@defthing[make-hash ((listof ('a * 'b)) -> (hashof 'a 'b))]
+@defthing[hash-ref ((hashof 'a 'b) 'a -> (optionof 'b))]
 @defthing[hash-set! ((hashof 'a 'b) 'a 'b -> void)]
 @defthing[hash-remove! ((hashof 'a 'b) 'a -> void)]
 @defthing[hash-keys ((hashof 'a 'b) -> (listof 'a))]
 )]{Hash table primitives.}
+
+@deftogether[(
+@defthing[none (-> (optionof 'a))]
+@defthing[some ('a -> (optionof 'a))]
+@defthing[some-v ((optionof 'a) -> 'a)]
+@defthing[none? ((optionof 'a) -> bool)]
+@defthing[some? ((optionof 'a) -> bool)]
+)]{
+Option constructors, selector, and predicates. See @racket[optionof].}
 
 @defthing[call/cc ((('a -> 'b) -> 'a) -> 'a)]{
 Continuation primitive.}
@@ -383,6 +390,14 @@ Type for the empty tuple.}
 @defform[(boxof type)]{Types for mutable boxes.}
 @defform[(vectorof type)]{Types for vectors of elements.}
 @defform[(hashof type type)]{Types for hash tables.}
+
+@defform[(optionof type)]{Defined as
+@racketblock[
+(define-type (optionof 'a)
+  [none]
+  [some (v : 'a)])
+]
+and used, for example, for the result of @racket[hash-ref].}
 
 @; ----------------------------------------
 
