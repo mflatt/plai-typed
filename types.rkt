@@ -7,7 +7,7 @@
 (provide gen-tvar make-bool make-num make-sym make-str make-vd make-sexp
          make-arrow make-listof make-boxof make-tupleof make-vectorof make-datatype
          make-hashof
-         to-contract
+         to-contract to-expression
          create-defn
          make-poly poly? poly-instance at-source instantiate-constructor-at
          unify! unify-defn!
@@ -80,6 +80,43 @@
               #'any/c))]
      [else (raise-syntax-error 'to-contract/expr
                                (format "got confused, trying to generate a contract ~s" type) 
+                               (type-src type))])))
+
+(define (to-expression type tvar-names)
+  (let loop ([type type])
+    (cond
+     [(defn? type) 
+      ;; is this the right thing?
+      (if (defn-rhs type)
+          (loop (defn-rhs type))
+          (loop (car (defn-proto-rhs type))))]
+     [(bool? type) #'(make-bool #f)]
+     [(num? type) #'(make-num #f)]
+     [(sym? type) #'(make-sym #f)]
+     [(sexp? type) #'(make-sexp #f)]
+     [(vd? type) #'(make-vd #f)]
+     [(str? type) #'(make-str #f)]
+     [(arrow? type) #`(make-arrow #f (list #,@(map loop (arrow-args type)))
+                                  #,(loop (arrow-result type)))]
+     [(listof? type) #`(make-listof #f #,(loop (listof-element type)))]
+     [(boxof? type) #`(make-boxof #f #,(loop (boxof-element type)))]
+     [(vectorof? type) #`(make-vectorof #f #,(loop (vectorof-element type)))]
+     [(hashof? type) #`(make-hashof #f
+                                    #,(loop (hashof-key type))
+                                    #,(loop (hashof-val type)))]
+     [(tupleof? type) #`(make-tupleof #f (list #,@(map loop (tupleof-args type))))]
+     [(poly? type) (let ([name (gensym)])
+                     #`(let ([#,name (gen-tvar #f)])
+                         (make-poly #f #,name #,(to-expression (poly-type type)
+                                                               (hash-set tvar-names
+                                                                         (poly-tvar type)
+                                                                         name)))))]
+     [(datatype? type) #`(make-datatype #f
+                                        (quote-syntax #,(datatype-id type))
+                                        (list #,@(map loop (datatype-args type))))]
+     [(tvar? type) (hash-ref tvar-names type #f)]
+     [else (raise-syntax-error 'to-contract/expr
+                               (format "got confused, trying to trun into an expression ~s" type) 
                                (type-src type))])))
 
 (define (gen-tvar src [arrow? #f])

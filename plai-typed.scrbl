@@ -82,11 +82,20 @@ using @racket[(id _arg-type ...)] is the same as using @racket[type]
 with each @racket['@#,racket[_arg-id]] replaced by the corresponding @racket[_arg-type].}
 
 
-@defform[#:literals (typed-in :)
-         (require (typed-in module-path [id : type] ...) ...)]{
-Imports @racket[id]s from @racket[module-path]s. The type system
-assumes (without static or additional dynamic checks) the given
-@racket[type] for each @racket[id].}
+@defform/subs[#:literals (typed-in :)
+              (require spec ...)
+              ([spec module-path
+                     (typed-in module-path [id : type] ...)])]{
+Imports from each @racket[module-path].
+
+When a @racket[module-path] is not wrapped with @racket[typed-in], then
+@racket[module-path] must refer to a module that is implemented with
+@racketmodname[plai-typed].
+
+When @racket[module-path] is wrapped with @racket[typed-in], then only the
+specified @racket[id]s are imported from @racket[module-path], and the
+type system assumes (without static or additional dynamic checks) the
+given @racket[type] for each @racket[id].}
 
 
 @defform[(trace id ...)]{

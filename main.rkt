@@ -236,20 +236,49 @@
 (define-syntax require:
   (check-top
    (lambda (stx)
-     (syntax-case stx (typed-in :)
-       [(_ (typed-in lib
-                     [id : type]
-                     ...)
-           ...)
-        (let ([libs (syntax->list #'(lib ...))]
-              [ids (syntax->list #'(id ... ...))])
-          (for ([lib (in-list libs)])
-            (unless (module-path? (syntax->datum lib))
-              (raise-syntax-error #f "bad module path" stx lib)))
-          (for ([id (in-list ids)])
-            (unless (identifier? id)
-              (raise-syntax-error #f "expected an identifier" stx id))))
-        #'(require (only-in lib id ...) ...)]))))
+     (syntax-case stx ()
+       [(_ clause ...)
+        (with-syntax ([(new-clause ...)
+                       (map (lambda (clause)
+                              (syntax-case clause (typed-in :)
+                                [(typed-in lib
+                                           [id : type]
+                                           ...)
+                                 (begin
+                                   (let ([lib #'lib]
+                                         [ids (syntax->list #'(id ...))])
+                                     (unless (module-path? (syntax->datum lib))
+                                       (raise-syntax-error #f "bad module path" stx lib))
+                                     (for ([id (in-list ids)])
+                                       (unless (identifier? id)
+                                         (raise-syntax-error #f "expected an identifier" stx id))))
+                                   (syntax/loc clause (only-in lib id ...)))]
+                                [mp
+                                 (module-path? (syntax-e #'mp))
+                                 (let ([s (syntax-e #'mp)])
+                                   (unless (module-declared? (if (and (pair? s) (eq? (car s 'submod)))
+                                                                 `(,@s plai-typed)
+                                                                 `(submod ,s plai-typed))
+                                                             #t)
+                                     (raise-syntax-error #f
+                                                         "not a `plai-typed' module"
+                                                         stx
+                                                         #'mp))
+                                   (let ([new-clause
+                                          (if (and (pair? s) (eq? (car s 'submod)))
+                                              (quasisyntax/loc clause (#,@#'mp plai-typed))
+                                              (quasisyntax/loc clause (submod mp plai-typed)))])
+                                     (datum->syntax clause
+                                                    (syntax-e new-clause)
+                                                    clause
+                                                    clause)))]
+                                [_
+                                 (raise-syntax-error #f
+                                                     "not a valid require specification"
+                                                     stx
+                                                     clause)]))
+                            (syntax->list #'(clause ...)))])
+          #'(require new-clause ...))]))))
 
 (define-syntax typed-in
   (lambda (stx)
@@ -1805,10 +1834,26 @@
                         (cons #'none (list))
                         (cons #'some (list (let ([a (gen-tvar #f)])
                                              (make-poly #f a a)))))])
-    (typecheck-defns tl datatypes aliases init-env init-variants #f #f)))
+    (typecheck-defns tl
+                     (append import-datatypes datatypes)
+                     (append import-aliases aliases)
+                     (append import-env init-env) 
+                     (append import-variants init-variants)
+                     #f
+                     #f)))
+
+(define-for-syntax import-datatypes null)
+(define-for-syntax import-aliases null)
+(define-for-syntax import-variants null)
+(define-for-syntax import-env null)
+(define-for-syntax (add-types! dts als vars env)
+  (set! import-datatypes (append dts import-datatypes))
+  (set! import-aliases (append als import-aliases))
+  (set! import-variants (append vars import-variants))
+  (set! import-env (append env import-env)))
 
 (define-syntax (typecheck-and-provide stx)
-  (let-values ([(tys e2 d2 a2 vars tl-types) 
+  (let-values ([(tys e2 dts als vars tl-types) 
                 (with-handlers ([exn:fail? (lambda (exn)
                                              (values exn #f #f #f #f null))])
                   (do-original-typecheck (cdr (syntax->list stx))))])
@@ -1818,12 +1863,47 @@
         ;; a sub-expression:
         #`(#%expression (let-syntax ([x (raise #,tys)])
                           x))
-        #`(provide
-           (contract-out
-            #,@(map (λ (tl-thing)
-                       #`[#,(car tl-thing)
-                          #,(to-contract (cdr tl-thing) #f)])
-                    tl-types))))))
+        #`(begin
+            (provide
+             (contract-out
+              #,@(map (λ (tl-thing)
+                         #`[#,(car tl-thing)
+                            #,(to-contract (cdr tl-thing) #f)])
+                      tl-types)))
+            (module* plai-typed #f
+              (begin-for-syntax
+               (add-types!
+                ;; datatypes:
+                (list #,@(map (lambda (dt)
+                                #`(cons (quote-syntax #,(car dt))
+                                        (quote #,(cdr dt))))
+                              dts))
+                ;; aliases:
+                (list #,@(map (lambda (a)
+                                #`(list (quote-syntax #,(car a))
+                                        (list #,@(map (lambda (a)
+                                                        #`(quote-syntax #,a))
+                                                      (cadr a)))
+                                        (quote-syntax #,(caddr a))))
+                              als))
+                ;; variants:
+                (list #,@(map (lambda (var)
+                                #`(list (quote-syntax #,(car var))
+                                        #,@(map (lambda (t)
+                                                  (to-expression t #hasheq()))
+                                                (cdr var))))
+                              vars))
+                ;; types
+                (list #,@(map (λ (tl-thing)
+                                 #`(cons (quote-syntax #,(car tl-thing))
+                                         #,(to-expression (cdr tl-thing) #hasheq())))
+                              tl-types))))
+              (provide #,@(map (λ (tl-thing)
+                                  (car tl-thing))
+                               tl-types)
+                       #,@(map (λ (dt)
+                                  (car dt))
+                               dts)))))))
 
 (define-for-syntax orig-body #f)
 (define-for-syntax (set-orig-body! v)
