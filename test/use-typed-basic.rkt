@@ -9,3 +9,5 @@
           [ordinal (n) n]))
 
 (test 10 ((lambda ([x : IntT]) ((v-f x) 9)) (v add1)))
+
+(define (sgf [sg : SharedGraph$]) sg)

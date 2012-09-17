@@ -1945,6 +1945,11 @@
                                tl-types)
                        #,@(map (λ (dt)
                                   (car dt))
+                               dts)
+                       ;; datatype predicates for contracts:
+                       #,@(map (lambda (dt)
+                                 (datum->syntax (car dt)
+                                                (string->symbol (format "~a?" (syntax-e (car dt))))))
                                dts)))))))
 
 (define-for-syntax orig-body #f)
