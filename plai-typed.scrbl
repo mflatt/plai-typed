@@ -128,6 +128,23 @@ which acse its type comes from its binding).
                       (s-exp ...)])]{
 A symbol (when the @racket[s-exp] is an identifier) or a literal S-expression.}
 
+@deftogether[(
+@defform/subs[#:literals (unquote unquote-splicing quasiquote)
+              (quasiquote qq-form)
+              ([qq-form id
+                        number
+                        string
+                        (qq-form ...)
+                        (#,(racket unquote) expr)
+                        (#,(racket unquote-splicing) expr)
+                        (#,(racket quasiquote) expr)])]
+@defidform[unquote]
+@defidform[unquote-splicing]
+)]{
+An S-expression with escapes. An @racket[id] (to generate a symbol
+S-expression) in a @racket[qq-form] must not be @racket[unquote],
+@racket[unquote-splicing], or @racket[quasiquote].}
+
 @defform[(#%app expr expr ...)]{
 
 A function call, which is normally written without the @scheme[#%app]

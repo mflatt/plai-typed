@@ -199,3 +199,10 @@
 (test "a" (llnode-s (some-v (llnode-next (first lls)))))
 (test "b" (llnode-s (second lls)))
 
+(test #t (s-exp-symbol? `a))
+(test '3 (second (s-exp->list `(a ,(number->s-exp (+ 1 2)) c))))
+(test '4 (third (s-exp->list `(a ,@(list '3 '4) c))))
+(test (second (s-exp->list `(a `,@(list '3 '4) c))) 
+      '(quasiquote (unquote-splicing (list '3 '4))))
+
+

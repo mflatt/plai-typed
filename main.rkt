@@ -35,11 +35,12 @@
                      [or: or]
                      [and: and]
                      [quote: quote]
+                     [quasiquote: quasiquote]
                      [set!: set!]
                      [time: time]
                      [trace: trace]
                      [require: require])
-         #%app #%datum #%top 
+         #%app #%datum #%top unquote unquote-splicing
          (rename-out [module-begin #%module-begin]
                      [top-interaction #%top-interaction])
          else typed-in
@@ -763,23 +764,54 @@
        [(_ tst expr ...)
         (syntax/loc stx (unless tst expr ...))]))))
 
+(define-for-syntax (check-quoted stx on-escaped)
+  (let loop ([s stx] [qq 0])
+    (define (fst s) (car (syntax-e s)))
+    (define (d->s s e) (datum->syntax s e s s))
+    (define (default s)
+      (or (and (let ([v (syntax-e s)])
+                 (or (symbol? v)
+                     (number? v)
+                     (string? v)))
+               s)
+          (let ([l (syntax->list s)])
+            (and l
+                 (d->s s (map (lambda (v) (loop v qq)) l))))
+          (raise-syntax-error #f
+                              "disallowed content; not a symbol, number, string, or list"
+                              stx
+                              s)))
+    (if on-escaped
+        (syntax-case s (unquote unquote-splicing quasiquote:)
+          [(unquote e) (if (zero? qq)
+                           (on-escaped s)
+                           (d->s s `(,(fst s) ,(loop #'e (sub1 qq)))))]
+          [(unquote-splicing e) (if (zero? qq)
+                                    (on-escaped s)
+                                    (d->s s `(,(fst s) ,(loop #'e (sub1 qq)))))]
+          [(quasiquote: e) (d->s s `(,(syntax/loc (fst s) quasiquote)
+                                     ,(loop #'e (add1 qq))))]
+          [unquote (raise-syntax-error #f "bad syntax" s)]
+          [unquote-splicing (raise-syntax-error #f "bad syntax" s)]
+          [quasiquote: (raise-syntax-error #f "bad syntax" s)]
+          [_ (default s)])
+        (default s))))
+
 (define-syntax quote:
   (check-top
    (lambda (stx)
      (syntax-case stx ()
        [(_ s)
-        (if (let loop ([s #'s])
-              (or (let ([v (syntax-e s)])
-                    (or (symbol? v)
-                        (number? v)
-                        (string? v)))
-                  (let ([l (syntax->list s)])
-                    (and l
-                         (andmap loop l)))))
-            #'(quote s)
-            (raise-syntax-error #f
-                                "quote allowed only for s-expressions containing symbols, numbers, strings, and lists"
-                                stx))]))))
+        (begin
+          (check-quoted stx #f)
+          #'(quote s))]))))
+
+(define-syntax quasiquote:
+  (check-top
+   (lambda (stx)
+     (syntax-case stx ()
+       [(_ s)
+        (check-quoted stx (lambda (s) s))]))))
 
 (define-syntax and:
   (check-top
@@ -1224,7 +1256,7 @@
                                     lambda: begin: local: letrec: let: let*: shared:
                                     begin: cond: case: if: when: unless:
                                     or: and: set!: trace:
-                                    type-case: quote: time:
+                                    type-case: quote: quasiquote: time:
                                     list vector values: try)
                  [(require: . _)
                   ;; handled in require env
@@ -1439,6 +1471,16 @@
                   (if (identifier? #'sym)
                       (make-sym expr)
                       (make-sexp expr))]
+                 [(quasiquote: e)
+                  (check-quoted #'e (lambda (stx)
+                                      (syntax-case stx (unquote unquote-splicing)
+                                        [(unquote e) (unify! #'e 
+                                                             (typecheck #'e env)
+                                                             (make-sexp #f))]
+                                        [(unquote-splicing e) (unify! #'e 
+                                                                      (typecheck #'e env) 
+                                                                      (make-listof #f (make-sexp #f)))])))
+                  (make-sexp expr)]
                  [(time: expr)
                   (typecheck #'expr env)]
                  [(try expr1 (lambda: () expr2))

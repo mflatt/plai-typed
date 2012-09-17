@@ -58,3 +58,28 @@
           in?
           (lambda (n) (void)))))
  #rx"typecheck failed: void vs boolean")
+
+(syn-test
+ '(module m plai-typed
+    (quote #"x"))
+ #rx"disallowed content")
+
+(syn-test
+ '(module m plai-typed
+    (quasiquote #"x"))
+ #rx"disallowed content")
+
+(syn-test
+ '(module m plai-typed
+    (quasiquote unquote))
+ #rx"bad syntax")
+
+(syn-test
+ '(module m plai-typed
+    (quasiquote (unquote 5)))
+ #rx"number vs s-expression")
+
+(syn-test
+ '(module m plai-typed
+    (quasiquote (1 (unquote-splicing 5) 3)))
+ #rx"number vs .listof s-expression.")
