@@ -1863,10 +1863,10 @@
                                                       (list
                                                        (make-datatype #f #'optionof (list a)))
                                                       B)))
-                     (cons #'some (POLY a (make-arrow #f 
-                                                      (list
-                                                       (make-datatype #f #'optionof (list a)))
-                                                      B)))
+                     (cons #'some? (POLY a (make-arrow #f 
+                                                       (list
+                                                        (make-datatype #f #'optionof (list a)))
+                                                       B)))
                      (cons #'some-v (POLY a (make-arrow #f 
                                                         (list
                                                          (make-datatype #f #'optionof (list a)))

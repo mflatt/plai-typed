@@ -172,6 +172,11 @@
           [none () 1]
           [some (v) v]))
 
+(test #t (some? (some 5)))
+(test #t (none? (none)))
+(test #f (none? (some 5)))
+(test #f (some? (none)))
+
 (define sid (some (lambda (x) x)))
 (test 5 ((some-v sid) 5))
 (test "5" ((some-v sid) "5"))
