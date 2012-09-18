@@ -179,9 +179,9 @@
            (free-identifier=? a i))
          (syntax->list
           #'(: number boolean symbol s-expression
-               string: -> listof: hashof:
+               string: -> * listof: hashof:
                boxof: vectorof:
-               void:))))
+               void: optionof))))
 
 (define-for-syntax (is-keyword? a)
   (or (is-type-keyword? a)
@@ -467,11 +467,13 @@
                  (unless (identifier? id)
                    (raise-syntax-error #f "expected an identifier" stx id)))
                (syntax->list #'(id arg ...)))
+          (check-defn-keyword #'id stx)
           #'(void))]
        [(_ id t)
         (let ([id #'id])
           (unless (identifier? id)
             (raise-syntax-error #f "expected `<id>' or `(<id> '<id> ...)'" stx id))
+          (check-defn-keyword #'id stx)
           #'(void))]))))
 
 (define-syntax begin:
@@ -548,8 +550,11 @@
      (if (eq? (syntax-local-context) 'expression)
          (syntax-case stx ()
            [(_ ([id rhs] ...) body)
-            (syntax/loc stx
-              (shared ([id rhs] ...) body))])
+            (let ([ids (syntax->list #'(id ...))])
+              (for ([id (in-list ids)])
+                (check-defn-keyword id stx))
+              (syntax/loc stx
+                (shared ([id rhs] ...) body)))])
          #`(#%expression #,stx)))))
 
 (define-for-syntax (convert-clauses stx)
@@ -713,7 +718,7 @@
                                   (for-each (lambda (id)
                                               (unless (identifier? id)
                                                 (raise-syntax-error #f
-                                                                    "alternative must be an identitifer"
+                                                                    "alternative must be a symbol"
                                                                     stx
                                                                     id)))
                                             (syntax->list #'(id ...)))
