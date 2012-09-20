@@ -11,3 +11,8 @@
 (test 10 ((lambda ([x : IntT]) ((v-f x) 9)) (v add1)))
 
 (define (sgf [sg : SharedGraph$]) sg)
+
+(test (list) (unbox boxed-null))
+
+(test (list 1) (kons 1 (list)))
+(test (list "a") (kons "a" (list)))

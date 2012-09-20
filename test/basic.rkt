@@ -210,4 +210,6 @@
 (test (second (s-exp->list `(a `,@(list '3 '4) c))) 
       '(quasiquote (unquote-splicing (list '3 '4))))
 
+(define kons cons)
+(define boxed-null (box (list)))
 

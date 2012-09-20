@@ -114,7 +114,13 @@
      [(datatype? type) #`(make-datatype #f
                                         (quote-syntax #,(datatype-id type))
                                         (list #,@(map loop (datatype-args type))))]
-     [(tvar? type) (hash-ref tvar-names type #f)]
+     [(tvar? type) (or (hash-ref tvar-names type #f)
+                       (let ([t (tvar-rep type)])
+                         (if t
+                             (loop t)
+                             ;; a non-polymophic but ununified type variable;
+                             ;; it has to turn into something that never matches
+                             `(make-datatype #f (quote-syntax unknown) null))))]
      [else (raise-syntax-error 'to-contract/expr
                                (format "got confused, trying to trun into an expression ~s" type) 
                                (type-src type))])))

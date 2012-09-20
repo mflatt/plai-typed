@@ -27,4 +27,4 @@
                                                 exn))])
         (set-box! (box-number 5) "apple")))
 
-            
+(test (list) (unbox boxed-null))
