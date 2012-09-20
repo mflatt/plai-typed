@@ -14,5 +14,4 @@
 
 (test (list) (unbox boxed-null))
 
-(test (list 1) (kons 1 (list)))
-(test (list "a") (kons "a" (list)))
+(test 1 (length (list kons)))

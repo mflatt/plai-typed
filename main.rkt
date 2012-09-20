@@ -1119,8 +1119,7 @@
                           [(none) #t]
                           [(some e) (loop #'e)]
                           [(quote: a) #t]
-                          [_ (or (identifier? expr)
-                                 (string? (syntax-e expr))
+                          [_ (or (string? (syntax-e expr))
                                  (number? (syntax-e expr))
                                  (boolean? (syntax-e expr)))])))]
          [req-env (apply

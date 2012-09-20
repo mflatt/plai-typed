@@ -83,3 +83,13 @@
  '(module m plai-typed
     (quasiquote (1 (unquote-splicing 5) 3)))
  #rx"number vs .listof s-expression.")
+
+
+(syn-test
+ '(module m plai-typed
+    (define b (let ([y (box (list))])
+                (lambda () y)))
+    (define c b)
+    (set-box! (c) (list 1))
+    (string-append (first (unbox (c))) "x"))
+ #rx"string vs number")
