@@ -18,6 +18,11 @@
   (lambda (id x)
     (list (id x) (id x))))
 
+(module+ test
+  (test (box 10) (box-number 10)))
+(module+ other
+  (+ (unbox (box 10)) (unbox (box-number 10))))
+
 (define box-number
   (lambda (n)
     (if (= n 0)
@@ -212,4 +217,7 @@
 
 (define kons cons)
 (define boxed-null (box (list)))
+
+(module+ test
+  (test "apple" (llnode-s (llnode "apple" (none)))))
 

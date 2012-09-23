@@ -92,6 +92,23 @@ functions bound to the @racket[id]s.  This form can be used only in a
 module top level, and only for tracing functions defined within the
 module.}
 
+
+@defform[(module+ id form ...)]{
+
+Declares/extends a submodule named @racket[id], which is particularly
+useful for defining a @racketidfont{test} submodule to hold tests that
+precede relevant definitions (since the submodule implicitly imports
+the bindings of its enclosing module, and DrRacket or @exec{raco test}
+runs the @racketidfont{test} submodule):
+
+@racketblock[
+ (module+ test
+   (test 11 (add-one 10)))
+
+ (define (add-one n)
+   (+ 1 n))
+]}
+
 @; ----------------------------------------
 
 @section{Expressions}
@@ -103,7 +120,7 @@ an S-expression (type
 @scheme[s-expression]) also written with @scheme[quote] or @litchar{'},
 @scheme[#t] (type @scheme[boolean]), or @scheme[#f] (type
 @scheme[boolean]). An expression also can be a bound identifier (in
-which acse its type comes from its binding).
+which case its type comes from its binding).
 
 @defthing[true boolean]
 @defthing[false boolean]
@@ -365,7 +382,9 @@ Test primitive forms.  The @racket[test] and @racket[test/exn] forms
 have type @racket[void], although they do not actually produce a void
 value; instead, they produce results suitable for automatic display
 through a top-level expression, and the @scheme[void] type merely
-prevents your program from using the result.}
+prevents your program from using the result.
+
+See also @racket[module+].}
 
 @defform[(time expr)]{
 Shows the time taken to evaluate @racket[expr].}

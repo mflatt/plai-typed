@@ -39,7 +39,8 @@
                      [set!: set!]
                      [time: time]
                      [trace: trace]
-                     [require: require])
+                     [require: require]
+                     [module+: module+])
          #%app #%datum #%top unquote unquote-splicing
          (rename-out [module-begin #%module-begin]
                      [top-interaction #%top-interaction])
@@ -49,7 +50,9 @@
                      [type-case: type-case])
          define-type-alias
 
-         test test/exn print-only-errors
+         (rename-out [test: test]
+                     [test/exn: test/exn])
+         print-only-errors
          
          cons list empty first rest empty? cons?
          second third fourth list-ref build-list length
@@ -284,6 +287,23 @@
 (define-syntax typed-in
   (lambda (stx)
     (raise-syntax-error #f "allowed only in `require'" stx)))
+
+(define-syntax test:
+  (check-top
+   (syntax-rules ()
+     [(_ e ...) (test e ...)])))
+
+(define-syntax test/exn:
+  (check-top
+   (syntax-rules ()
+     [(_ e ...) (test/exn e ...)])))
+
+(define-syntax-rule (module+: name e ...)
+  (module+ name
+    ;; to register implicitly imported types:
+    (require (only-in (submod ".." plai-typed)))
+    e
+    ...))
 
 (define-syntax define:
   (check-top
@@ -1262,7 +1282,11 @@
                                     begin: cond: case: if: when: unless:
                                     or: and: set!: trace:
                                     type-case: quote: quasiquote: time:
-                                    list vector values: try)
+                                    list vector values: try
+                                    module+:)
+                 [(module+: . _)
+                  ;; can ignore
+                  (void)]
                  [(require: . _)
                   ;; handled in require env
                   (void)]
@@ -1705,13 +1729,13 @@
                      (cons #'eq? (POLY a (make-arrow #f 
                                                      (list a a)
                                                      B)))
-                     (cons #'test (POLY a (make-arrow #f 
-                                                      (list a a)
-                                                      (make-vd #f))))
-                     (cons #'test/exn (POLY a (make-arrow #f 
-                                                          (list a
-                                                                STR)
-                                                          (make-vd #f))))
+                     (cons #'test: (POLY a (make-arrow #f 
+                                                       (list a a)
+                                                       (make-vd #f))))
+                     (cons #'test/exn: (POLY a (make-arrow #f 
+                                                           (list a
+                                                                 STR)
+                                                           (make-vd #f))))
                      (cons #'print-only-errors (make-arrow #f 
                                                            (list B)
                                                            (make-vd #f)))

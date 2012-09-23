@@ -80,7 +80,7 @@
               #'any/c))]
      [else (raise-syntax-error 'to-contract/expr
                                (format "got confused, trying to generate a contract ~s" type) 
-                               (type-src type))])))
+                               (and (type? type) (type-src type)))])))
 
 (define (to-expression type tvar-names)
   (let loop ([type type])
