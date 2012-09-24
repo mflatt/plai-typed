@@ -1568,6 +1568,8 @@
                     (make-num expr)]
                    [(string? (syntax-e expr))
                     (make-str expr)]
+                   [(eq? (void) (syntax-e expr))
+                    (void)]
                    [else
                     (raise-syntax-error #f
                                         "don't know how to typecheck"
