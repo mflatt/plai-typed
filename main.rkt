@@ -402,37 +402,42 @@
            (reverse (constructor-syntax-mutators c))
            #f))))
 
-(define-syntax define-type:
-  (check-top
-   (lambda (stx)
-     (syntax-case stx (:)
-       [(_ thing . rest)
-        (not (or (identifier? #'thing)
-                 (syntax-case #'thing (quote:)
-                   [(id (quote: arg) ...)
-                    (and (identifier? #'id)
-                         (andmap identifier? (syntax->list #'(arg ...))))]
-                   [_ #f])))
-        (raise-syntax-error
-         #f
-         "expected an <id> for a type name or (<id> '<id> ...) for polymorphic type"
-         stx
-         #'thing)]
-       [(_ id [variant (field : type) ...] ...)
-        (with-syntax ([id (if (identifier? #'id)
-                              #'id
-                              (syntax-case #'id (quote:)
-                                [(id (quote: arg) ...)
-                                 #'id]))]
-                      [($variant ...) (map (lambda (variant)
-                                             (datum->syntax variant
-                                                            (string->uninterned-symbol
-                                                             (symbol->string (syntax-e variant)))
-                                                            variant
-                                                            variant))
-                                           (syntax->list #'(variant ...)))]
-                      [(((variant-field set-variant-field!) ...) ...)
-                       (map (lambda (variant fields)
+(define-for-syntax expand-define-type
+  (lambda (stx)
+    (syntax-case stx (:)
+      [(_ thing . rest)
+       (not (or (identifier? #'thing)
+                (syntax-case #'thing (quote:)
+                  [(id (quote: arg) ...)
+                   (and (identifier? #'id)
+                        (andmap identifier? (syntax->list #'(arg ...))))]
+                  [_ #f])))
+       (raise-syntax-error
+        #f
+        "expected an <id> for a type name or (<id> '<id> ...) for polymorphic type"
+        stx
+        #'thing)]
+      [(_ id [variant (field : type) ...] ...)
+       (with-syntax ([id (if (identifier? #'id)
+                             #'id
+                             (syntax-case #'id (quote:)
+                               [(id (quote: arg) ...)
+                                #'id]))]
+                     [($variant ...) (map (lambda (variant)
+                                            (datum->syntax variant
+                                                           (string->uninterned-symbol
+                                                            (symbol->string (syntax-e variant)))
+                                                           variant
+                                                           variant))
+                                          (syntax->list #'(variant ...)))]
+                     [((variant? (variant-field set-variant-field!) ...) ...)
+                      (map (lambda (variant fields)
+                             (cons 
+                              (datum->syntax variant
+                                             (string->symbol
+                                              (format "~a?" (syntax-e variant)))
+                                             variant
+                                             variant)
                               (map (lambda (field)
                                      (define (mk fmt)
                                        (datum->syntax variant
@@ -443,39 +448,53 @@
                                                       variant
                                                       variant))
                                      (list (mk "~a-~a") (mk "set-~a-~a!")))
-                                   (syntax->list fields)))
-                            (syntax->list #'(variant ...))
-                            (syntax->list #'((field ...) ...)))])
-          (let ([s #'(define-type id
-                         [$variant (field (lambda (x) #t)) ...] ...)])
-            #`(begin
-                #,(datum->syntax stx (syntax-e s) stx stx)
-                (define-syntax variant (constructor-syntax
-                                        (quote-syntax $variant)
-                                        (list (quote-syntax variant-field)
-                                              ...)
-                                        (list (quote-syntax set-variant-field!)
-                                              ...)))
-                ...)))]
-       [(_ id thing ...)
-        (for-each (lambda (thing)
-                    (syntax-case thing ()
-                      [[variant thing ...]
-                       (for-each (lambda (thing)
-                                   (syntax-case thing (:)
-                                     [(field : type) 'ok]
-                                     [_ (raise-syntax-error
-                                         #f
-                                         "expected `(<id> : <type>)'"
-                                         stx
-                                         thing)]))
-                                 (syntax->list #'(thing ...)))]
-                      [_ (raise-syntax-error
-                          #f
-                          "expected `[<id> (<id> : <type>) ...]'"
-                          stx
-                          thing)]))
-                  (syntax->list #'(thing ...)))]))))
+                                   (syntax->list fields))))
+                           (syntax->list #'(variant ...))
+                           (syntax->list #'((field ...) ...)))])
+         (let ([dup (check-duplicate-identifier
+                     (syntax->list #'(id
+                                      variant ... 
+                                      variant? ...
+                                      variant-field ... ... 
+                                      set-variant-field! ... ...)))])
+           (when dup
+             (raise-syntax-error #f 
+                                 "duplicate definition for identifier"
+                                 stx
+                                 dup)))
+         (let ([s #'(define-type id
+                      [$variant (field (lambda (x) #t)) ...] ...)])
+           #`(begin
+               #,(datum->syntax stx (syntax-e s) stx stx)
+               (define-syntax variant (constructor-syntax
+                                       (quote-syntax $variant)
+                                       (list (quote-syntax variant-field)
+                                             ...)
+                                       (list (quote-syntax set-variant-field!)
+                                             ...)))
+               ...)))]
+      [(_ id thing ...)
+       (for-each (lambda (thing)
+                   (syntax-case thing ()
+                     [[variant thing ...]
+                      (for-each (lambda (thing)
+                                  (syntax-case thing (:)
+                                    [(field : type) 'ok]
+                                    [_ (raise-syntax-error
+                                        #f
+                                        "expected `(<id> : <type>)'"
+                                        stx
+                                        thing)]))
+                                (syntax->list #'(thing ...)))]
+                     [_ (raise-syntax-error
+                         #f
+                         "expected `[<id> (<id> : <type>) ...]'"
+                         stx
+                         thing)]))
+                 (syntax->list #'(thing ...)))])))
+
+(define-syntax define-type:
+  (check-top expand-define-type))
 
 (define-syntax define-type-alias
   (check-top
@@ -1999,7 +2018,18 @@
 (define-syntax (top-interaction stx)
   (syntax-case stx ()
     [(_ . body)
-     (let ([expanded-body (local-expand #'body 'top-level null)])
+     (let ([expanded-body (syntax-case #'body (define-type:)
+                            [(define-type: . _)
+                             ;; Can't `local-expand' without also evaluating
+                             ;; due to introduced identifiers interleaved
+                             ;; in definitions;the only point of local expansion 
+                             ;; is to check syntax, so just call the transformer
+                             ;; directly:
+                             (begin
+                               (expand-define-type #'body)
+                               #'body)]
+                            [_
+                             (local-expand #'body 'top-level null)])])
        (unless tl-env
          (let-values ([(ts e d a vars tl-types) (do-original-typecheck (syntax->list (or orig-body #'())))])
            (set! tl-datatypes d)
