@@ -109,6 +109,11 @@ runs the @racketidfont{test} submodule):
    (+ 1 n))
 ]}
 
+@defform[(include path-spec)]{
+
+Copy the content of @racket[path-spec] in place of the @racket[include]
+form, which can only be used in a top-level position.}
+
 @; ----------------------------------------
 
 @section{Expressions}

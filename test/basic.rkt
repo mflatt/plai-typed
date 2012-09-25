@@ -221,3 +221,6 @@
 (module+ test
   (test "apple" (llnode-s (llnode "apple" (none)))))
 
+(include "for-basic.rktl")
+(test "hello6" (string-append included-string
+                              (to-string (+ included-num 1))))

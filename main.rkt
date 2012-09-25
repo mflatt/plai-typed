@@ -12,6 +12,7 @@
          racket/bool
          racket/local
          racket/shared
+         racket/include
          (only-in racket/contract/base contract-out)
          racket/trace
          (for-syntax racket/base
@@ -40,7 +41,8 @@
                      [time: time]
                      [trace: trace]
                      [require: require]
-                     [module+: module+])
+                     [module+: module+]
+                     [include: include])
          #%app #%datum #%top unquote unquote-splicing
          (rename-out [module-begin #%module-begin]
                      [top-interaction #%top-interaction])
@@ -304,6 +306,28 @@
     (require (only-in (submod ".." plai-typed)))
     e
     ...))
+
+(define-syntax include: 
+  (check-top
+   (lambda (stx)
+     (unless (memq (syntax-local-context) '(module top-level))
+       (raise-syntax-error #f "allowed only as a top-level form" stx))
+     (syntax-case stx ()
+       [(_ spec) (with-syntax ([orig-stx stx])
+                   (syntax/loc stx 
+                     (include-at/relative-to orig-stx orig-stx spec)))]))))
+
+(define-for-syntax (expand-includes l)
+  (let loop ([l l])
+    (cond
+     [(null? l) null]
+     [else
+      (syntax-case (car l) (include:)
+        [(include: spec)
+         (append
+          (cdr (syntax->list (local-expand (car l) (syntax-local-context) #f)))
+          (loop (cdr l)))]
+        [_ (cons (car l) (loop (cdr l)))])])))
 
 (define-syntax define:
   (check-top
@@ -1926,7 +1950,7 @@
                         (cons #'none (list))
                         (cons #'some (list (let ([a (gen-tvar #f)])
                                              (make-poly #f a a)))))])
-    (typecheck-defns tl
+    (typecheck-defns (expand-includes tl)
                      (append import-datatypes datatypes)
                      (append import-aliases aliases)
                      (append import-env init-env) 
@@ -2039,7 +2063,8 @@
            (set! tl-env e)
            (set! tl-variants vars)))
        (let-values ([(tys e2 d2 a2 vars tl-types) 
-                     (typecheck-defns (list #'body) tl-datatypes tl-aliases tl-env tl-variants (identifier? #'body) #f)])
+                     (typecheck-defns (expand-includes (list #'body))
+                                      tl-datatypes tl-aliases tl-env tl-variants (identifier? #'body) #f)])
          (set! tl-datatypes d2)
          (set! tl-aliases a2)
          (set! tl-env e2)
