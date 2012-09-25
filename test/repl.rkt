@@ -34,3 +34,5 @@
           [v (fd : 'a)]))
 (te #rx"duplicate definition for identifier" '(define-type (M 'a)
                                                 [M (v : 'a)]))
+
+(tl "" (void))
