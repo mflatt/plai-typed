@@ -15,3 +15,5 @@
 (test (list) (unbox boxed-null))
 
 (test 1 (length (list kons)))
+
+(test 88 (twice 44))

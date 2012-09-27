@@ -42,11 +42,16 @@
                      [trace: trace]
                      [require: require]
                      [module+: module+]
-                     [include: include])
+                     [include: include]
+                     [splice: splice]
+                     [define-syntax: define-syntax]
+                     [define-syntax-rule: define-syntax-rule])
          #%app #%datum #%top unquote unquote-splicing
          (rename-out [module-begin #%module-begin]
                      [top-interaction #%top-interaction])
          else typed-in
+
+         (for-syntax (all-from-out racket/base))
 
          (rename-out [define-type: define-type]
                      [type-case: type-case])
@@ -317,17 +322,85 @@
                    (syntax/loc stx 
                      (include-at/relative-to orig-stx orig-stx spec)))]))))
 
+(begin-for-syntax 
+ (struct typed-macro (proc)
+   #:property prop:procedure 0)
+ (define macro-inspector (current-code-inspector))
+
+ (define (add-begin proc)
+   (lambda (stx)
+     ;; Insert a `begin' wrapper so we can `local-expand' just once:
+     #`(begin #,(proc stx)))))
+
+(define-syntax define-syntax:
+  (check-top
+   (lambda (stx)
+     (syntax-case stx ()
+       [(_ id rhs)
+        (identifier? #'id)
+        (syntax-case* #'rhs (syntax-rules lambda) free-transformer-identifier=?
+          [(syntax-rules . _)
+           #`(define-syntax id (typed-macro (add-begin rhs)))]
+          [(lambda (arg) . rest)
+           #`(define-syntax id (typed-macro (add-begin rhs)))]
+          [_
+           (raise-syntax-error #f "expected a `syntax-rules' or single-argument `lambda' form after identifier" stx)])]
+       [(_ id . _)
+        (raise-syntax-error #f "expected an identifier" stx #'id)]))))
+
+(define-syntax define-syntax-rule:
+  (check-top
+   (lambda (stx)
+     (syntax-case stx ()
+       [(_ (id . rest) tmpl)
+        (identifier? #'id)
+        #`(define-syntax: id (syntax-rules () [(id . rest) tmpl]))]))))
+
+(define-for-syntax (disarm stx)
+  (let loop ([e stx])
+    (cond
+     [(syntax? e) 
+      (define stx (syntax-disarm e macro-inspector))
+      (datum->syntax stx
+                     (loop (syntax-e stx))
+                     stx
+                     stx)]
+     [(pair? e) (cons (loop (car e)) (loop (cdr e)))]
+     [(vector? e) (list->vector (map loop (vector->list e)))]
+     [else e])))
+
+(define-for-syntax (local-expand-typed expr)
+  (define stx (local-expand expr 'expression #f))
+  (syntax-case stx (begin)
+    [(begin e) (disarm #'e)]
+    [_ (error 'local-expand-typed "something went wrong: ~e => ~e" expr stx)]))
+
 (define-for-syntax (expand-includes l)
   (let loop ([l l])
     (cond
      [(null? l) null]
      [else
-      (syntax-case (car l) (include:)
+      (syntax-case (car l) (include: splice:)
         [(include: spec)
          (append
           (cdr (syntax->list (local-expand (car l) (syntax-local-context) #f)))
           (loop (cdr l)))]
+        [(splice: e ...)
+         (loop (append (syntax->list #'(e ...)) (cdr l)))]
+        [(id . _)
+         (and (identifier? #'id)
+              (typed-macro? (syntax-local-value #'id (lambda () #f))))
+         (loop (cons (local-expand-typed (car l))
+                     (cdr l)))]
         [_ (cons (car l) (loop (cdr l)))])])))
+
+(define-syntax splice: 
+  (check-top
+   (lambda (stx)
+     (unless (memq (syntax-local-context) '(module top-level))
+       (raise-syntax-error #f "allowed only as a top-level form" stx))
+     (syntax-case stx ()
+       [(_ e ...) #'(begin e ...)]))))
 
 (define-syntax define:
   (check-top
@@ -1137,6 +1210,14 @@
                              (syntax-case arg (:)
                                [(id : type) (parse-mono-type #'type)]
                                [_ (gen-tvar #'arg)]))]
+         [macros (apply append
+                        (map 
+                         (lambda (stx)
+                           (syntax-case stx (define-syntax:)
+                             [(define-syntax: id . _)
+                              (list #'id)]
+                             [_ null]))
+                         tl))]
          [variants (apply append
                           init-variants
                           (map 
@@ -1320,7 +1401,7 @@
            (lambda (tl)
              (let typecheck ([expr tl] [env env])
                (syntax-case expr (: require: define-type: define: define-values: 
-                                    define-type-alias
+                                    define-type-alias define-syntax: define-syntax-rule:
                                     lambda: begin: local: letrec: let: let*: shared:
                                     begin: cond: case: if: when: unless:
                                     or: and: set!: trace:
@@ -1328,6 +1409,12 @@
                                     list vector values: try
                                     module+:)
                  [(module+: . _)
+                  ;; can ignore
+                  (void)]
+                 [(define-syntax: . _)
+                  ;; can ignore
+                  (void)]
+                 [(define-syntax-rule: . _)
                   ;; can ignore
                   (void)]
                  [(require: . _)
@@ -1398,7 +1485,7 @@
                          (syntax->list #'(e ...)))
                     (typecheck #'last-e env))]
                  [(local: [defn ...] expr)
-                  (let-values ([(ty env datatypes aliases vars tl-tys)
+                  (let-values ([(ty env datatypes aliases vars macros tl-tys)
                                 (typecheck-defns (syntax->list #'(defn ...))
                                                  datatypes
                                                  aliases
@@ -1414,7 +1501,7 @@
                  [(let*: . _)
                   (typecheck ((make-let 'let*) expr) env)]
                  [(shared: ([id rhs] ...) expr)
-                  (let-values ([(ty env datatypes aliases vars tl-tys)
+                  (let-values ([(ty env datatypes aliases vars macros tl-tys)
                                 (typecheck-defns (syntax->list #'((define: id rhs) ...))
                                                  datatypes
                                                  aliases
@@ -1588,6 +1675,11 @@
                   (raise-syntax-error #f
                                       "tuple constructor must be applied directly to arguments"
                                       expr)]
+                 
+                 [(id . _)
+                  (and (identifier? #'id)
+                       (typed-macro? (syntax-local-value #'id (lambda () #f))))
+                  (typecheck (local-expand-typed expr) env)]
                  [(f arg ...)
                   (let ([res-type (gen-tvar expr)])
                     (unify! #'f
@@ -1637,6 +1729,7 @@
      datatypes
      aliases
      variants
+     macros
      poly-def-env)))
 
 (define-for-syntax tl-env #f)
@@ -1969,9 +2062,9 @@
   (set! import-env (append env import-env)))
 
 (define-syntax (typecheck-and-provide stx)
-  (let-values ([(tys e2 dts als vars tl-types) 
+  (let-values ([(tys e2 dts als vars macros tl-types) 
                 (with-handlers ([exn:fail? (lambda (exn)
-                                             (values exn #f #f #f #f null))])
+                                             (values exn #f #f #f #f #f null))])
                   (do-original-typecheck (cdr (syntax->list stx))))])
     (if (exn? tys)
         ;; There was an exception while type checking. To order
@@ -2020,6 +2113,7 @@
                        #,@(map (λ (dt)
                                   (car dt))
                                dts)
+                       #,@macros
                        ;; datatype predicates for contracts:
                        #,@(map (lambda (dt)
                                  (datum->syntax (car dt)
@@ -2057,12 +2151,13 @@
                             [_
                              (local-expand #'body 'top-level null)])])
        (unless tl-env
-         (let-values ([(ts e d a vars tl-types) (do-original-typecheck (syntax->list (or orig-body #'())))])
+         (let-values ([(ts e d a vars macros tl-types) 
+                       (do-original-typecheck (syntax->list (or orig-body #'())))])
            (set! tl-datatypes d)
            (set! tl-aliases a)
            (set! tl-env e)
            (set! tl-variants vars)))
-       (let-values ([(tys e2 d2 a2 vars tl-types) 
+       (let-values ([(tys e2 d2 a2 vars macros tl-types) 
                      (typecheck-defns (expand-includes (list #'body))
                                       tl-datatypes tl-aliases tl-env tl-variants (identifier? #'body) #f)])
          (set! tl-datatypes d2)

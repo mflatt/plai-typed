@@ -224,3 +224,20 @@
 (include "for-basic.rktl")
 (test "hello6" (string-append included-string
                               (to-string (+ included-num 1))))
+
+(define-syntax twice
+  (syntax-rules ()
+    [(twice a)
+     (+ a a)]
+    [(twice a b)
+     (+ (+ a a) (+ b b))]))
+(test 10 (twice 5))
+(test 16.2 (twice 6.0 2.1))
+
+(define-syntax-rule (define-seven a b)
+  (splice
+   (define a 7)
+   (define b 7)))
+(define-seven seven-a seven-b)
+(test 7 seven-a)
+(test 7 seven-b)

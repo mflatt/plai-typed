@@ -1,5 +1,18 @@
 #lang scribble/manual
-@(require (for-label plai-typed))
+@(require (for-label (only-meta-in 0 plai-typed))
+          (for-syntax racket/base)
+          scribble/racket)
+
+@(define-syntax-rule (define-r r:lambda r:syntax-rules)
+  (begin
+   (require (for-label racket/base))
+   (define-syntax r:lambda
+     (make-element-id-transformer
+      (lambda (stx) #'@racket[lambda])))
+   (define-syntax r:syntax-rules
+     (make-element-id-transformer
+      (lambda (stx) #'@racket[syntax-rules])))))
+@(define-r r:lambda r:syntax-rules)
 
 @title{PLAI Typed Language}
 
@@ -113,6 +126,36 @@ runs the @racketidfont{test} submodule):
 
 Copy the content of @racket[path-spec] in place of the @racket[include]
 form, which can only be used in a top-level position.}
+
+@deftogether[(
+@defform[(define-syntax-rule (id pattern ...) template)]
+@defform/subs[#:literals (r:syntax-rules r:lambda)
+              (define-syntax id macro-expr)
+              ([macro (r:syntax-rules ....)
+                      (r:lambda ....)])]
+)]{
+Defines a macro. In a @racket[macro-expr], the bindings of
+@racketmodname[racket/base] are available.
+
+A macro of the form
+
+@racketblock[
+(define-syntax-rule (id pattern ...) template)
+]
+
+is equivalent to
+
+@racketblock[
+(define-syntax id
+  (r:syntax-rules ()
+   [(id pattern ...) template]))
+]}
+
+
+@defform[(splice form ...)]{
+
+Equivalent to the @racket[form]s sequence in a module or top-level context,
+which is useful for producing multiple definitions from a macro.}
 
 @; ----------------------------------------
 
