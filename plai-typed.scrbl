@@ -129,12 +129,13 @@ form, which can only be used in a top-level position.}
 
 @deftogether[(
 @defform[(define-syntax-rule (id pattern ...) template)]
-@defform/subs[#:literals (r:syntax-rules r:lambda)
-              (define-syntax id macro-expr)
-              ([macro (r:syntax-rules ....)
-                      (r:lambda ....)])]
+@defform*/subs[#:literals (r:syntax-rules r:lambda)
+               [(define-syntax id macro-expr)
+                (define-syntax (id arg-id) macro-body ...)]
+               ([macro (r:syntax-rules ....)
+                       (r:lambda ....)])]
 )]{
-Defines a macro. In a @racket[macro-expr], the bindings of
+Defines a macro. In a @racket[macro-expr] or @racket[macro-body], the bindings of
 @racketmodname[racket/base] are available.
 
 A macro of the form

@@ -17,3 +17,4 @@
 (test 1 (length (list kons)))
 
 (test 88 (twice 44))
+(test 3 (a-macro whatever we like this time around))

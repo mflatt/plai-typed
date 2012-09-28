@@ -350,13 +350,23 @@
         (identifier? #'id)
         (syntax-case* #'rhs (syntax-rules lambda) free-transformer-identifier=?
           [(syntax-rules . _)
-           #`(define-syntax id (typed-macro (add-begin rhs)))]
+           (syntax/loc stx
+             (define-syntax id (typed-macro (add-begin rhs))))]
           [(lambda (arg) . rest)
-           #`(define-syntax id (typed-macro (add-begin rhs)))]
+           (syntax/loc stx
+             (define-syntax id (typed-macro (add-begin rhs))))]
           [_
            (raise-syntax-error #f "expected a `syntax-rules' or single-argument `lambda' form after identifier" stx)])]
+       [(_ (id arg-id) . rest)
+        (and (identifier? #'id)
+             (identifier? #'arg-id))
+        (if (and (pair? (syntax-e #'rest))
+                 (syntax->list #'rest))
+            (syntax/loc stx
+              (define-syntax id (typed-macro (add-begin (lambda (arg-id) . rest)))))
+            (raise-syntax-error #f "ill-formed macro body" stx))]
        [(_ id . _)
-        (raise-syntax-error #f "expected an identifier" stx #'id)]))))
+        (raise-syntax-error #f "expected an identifier or `(<identifier> <identifier>)' header" stx #'id)]))))
 
 (define-syntax define-syntax-rule:
   (check-top
@@ -1224,6 +1234,8 @@
                         (map 
                          (lambda (stx)
                            (syntax-case stx (define-syntax:)
+                             [(define-syntax: (id . _) . _)
+                              (list #'id)]
                              [(define-syntax: id . _)
                               (list #'id)]
                              [_ null]))

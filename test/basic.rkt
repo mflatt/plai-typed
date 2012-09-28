@@ -252,3 +252,7 @@
 (define-seven seven-a seven-b)
 (test 7 seven-a)
 (test 7 seven-b)
+
+(define-syntax (a-macro stx)
+  #'(+ 1 2))
+(test 3 (a-macro whatever you like))
