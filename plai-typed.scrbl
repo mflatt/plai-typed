@@ -403,11 +403,19 @@ S-expressions.}
 
 @deftogether[(
 @defthing[make-hash ((listof ('a * 'b)) -> (hashof 'a 'b))]
+@defthing[hash ((listof ('a * 'b)) -> (hashof 'a 'b))]
 @defthing[hash-ref ((hashof 'a 'b) 'a -> (optionof 'b))]
 @defthing[hash-set! ((hashof 'a 'b) 'a 'b -> void)]
 @defthing[hash-remove! ((hashof 'a 'b) 'a -> void)]
+@defthing[hash-set ((hashof 'a 'b) 'a 'b -> (hashof 'a 'b))]
+@defthing[hash-remove ((hashof 'a 'b) 'a -> (hashof 'a 'b))]
 @defthing[hash-keys ((hashof 'a 'b) -> (listof 'a))]
-)]{Hash table primitives.}
+)]{Hash table primitives. The @racket[make-hash] function
+creates a mutable hash table for use with @racket[hash-set!]
+and @racket[hash-remove!], while the @racket[hash] function
+creates an immutable hash table for use with @racket[hash-set]
+and @racket[hash-remove]. The @racket[hash-ref] and @racket[hash-keys]
+functions work on both mutable and immutable hash tables.}
 
 @deftogether[(
 @defthing[none (-> (optionof 'a))]

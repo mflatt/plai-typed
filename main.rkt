@@ -78,8 +78,10 @@
          display
 
          (rename-out [make-hash: make-hash]
+                     [hash: hash]
                      [hash-ref: hash-ref])
          hash-set! hash-remove! hash-keys
+         hash-set hash-remove
 
          s-exp-symbol? s-exp->symbol symbol->s-exp
          s-exp-number? s-exp->number number->s-exp
@@ -114,6 +116,14 @@
   [some (v (lambda (x) #t))])
 
 (define not-there (gensym))
+
+(define (hash: l)
+  (apply hash
+         (apply
+          append
+          (for/list ([v (in-list l)])
+            (list (vector-ref v 0)
+                  (vector-ref v 1))))))
 
 (define (make-hash: l)
   (make-hash (for/list ([v (in-list l)])
@@ -1808,6 +1818,13 @@
                                                                             #f
                                                                             (list a b))))
                                                                     (make-hashof #f a b)))))
+                     (cons #'hash: (POLY a (POLY b (make-arrow #f
+                                                               (list (make-listof 
+                                                                      #f
+                                                                      (make-tupleof
+                                                                       #f
+                                                                       (list a b))))
+                                                               (make-hashof #f a b)))))
                      (cons #'hash-ref: (POLY a (POLY b (make-arrow #f
                                                                    (list (make-hashof #f a b)
                                                                          a)
@@ -1821,6 +1838,15 @@
                                                                       (list (make-hashof #f a b)
                                                                             a)
                                                                       (make-vd #f)))))
+                     (cons #'hash-set (POLY a (POLY b (make-arrow #f
+                                                                  (list (make-hashof #f a b)
+                                                                        a
+                                                                        b)
+                                                                  (make-hashof #f a b)))))
+                     (cons #'hash-remove (POLY a (POLY b (make-arrow #f
+                                                                     (list (make-hashof #f a b)
+                                                                           a)
+                                                                     (make-hashof #f a b)))))
                      (cons #'hash-keys (POLY a (POLY b (make-arrow #f
                                                                    (list (make-hashof #f a b))
                                                                    (make-listof #f a)))))

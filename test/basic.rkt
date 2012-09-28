@@ -199,6 +199,17 @@
 (test 4 (let ([l (hash-keys ht2)])
           (+ (first l) (second l))))
 
+(define ht3 (hash (list (values "a" 'a) (values "b" 'b))))
+(test (some 'a) (hash-ref ht3 "a"))
+(test (some 'b) (hash-ref ht3 "b"))
+(define ht4 (hash-set ht3 "c" 'c))
+(test (some 'a) (hash-ref ht4 "a"))
+(test (some 'c) (hash-ref ht4 "c"))
+(define ht5 (hash-remove ht4 "b"))
+(test (some 'a) (hash-ref ht5 "a"))
+(test (some 'c) (hash-ref ht5 "c"))
+(test (none) (hash-ref ht5 "b"))
+
 (define-type linked-list
   [llnode (s : string)
           (next : (optionof linked-list))])
