@@ -17,6 +17,7 @@
          racket/trace
          (for-syntax racket/base
                      racket/list
+                     racket/syntax
                      "types.ss"
                      racket/struct-info))
 
@@ -1038,6 +1039,84 @@
                       (symbol->string (syntax-e e))))
                 l)))))
 
+(define-for-syntax (rename-ids ids expr)
+  (cond
+   [(null? ids) expr]
+   [else
+    (define d (syntax-local-make-definition-context))
+    (syntax-local-bind-syntaxes	ids #f d)
+    (internal-definition-context-seal d)
+    (internal-definition-context-apply d expr)]))
+
+(define-for-syntax (extract-definition-ids defn)
+  (syntax-case defn (: define-type: define: define-values: 
+                       define-type-alias)
+    [(define-type: name [variant (field-id : field-type) ...] ...)
+     (let-values ([(name args)
+                   (syntax-case #'name (quote:)
+                     [(name (quote arg) ...)
+                      (values #'name (syntax->list #'(arg ...)))]
+                     [else (values #'name null)])])
+       (apply append
+              (list #'id)
+              (map (lambda (var fields)
+                     (list* var
+                            (mk var var "?")
+                            (map (lambda (field)
+                                   (mk var var "-" field))
+                                 (syntax->list fields))))
+                   (syntax->list #'(variant ...))
+                   (syntax->list #'((field-id ...) ...)))))]
+    [(define-type-alias (id (quote: arg) ...) t)
+     (list #'id)]
+    [(define-type-alias id t)
+     (list #'id)]
+    [(define: (id arg ...) . rest)
+     (list #'id)]
+    [(define: id : type expr)
+     (list #'id)]
+    [(define: id expr)
+     (list #'id)]
+    [(define-values: (id ...) rhs)
+     (syntax->list #'(id ...))]
+    [_ null]))
+
+;; Since we manage macro expansion during type checking, we're also
+;; responsible for renaming at local-binding forms:
+(define-for-syntax (rename expr)
+  (syntax-case expr (: lambda: local: letrec: let: let*: shared:
+                       type-case: )
+    [(lambda: (arg ...) . _)
+     (rename-ids (map (lambda (arg)
+                        (syntax-case arg (:)
+                          [(id : type) #'id]
+                          [else arg]))
+                      (syntax->list #'(arg ...))) 
+                 expr)]
+    [(local: [defn ...] body)
+     (rename-ids (apply append
+                        (map extract-definition-ids
+                             (syntax->list #'(defn ...))))
+                 expr)]
+    [(letrec: ([id rhs] ...) body)
+     (rename-ids (syntax->list #'(id ...)) expr)]
+    [(let: ([id rhs] ...) body)
+     (rename-ids (syntax->list #'(id ...)) expr)]
+    [(let*: ([id rhs] ...) body)
+     (rename-ids (syntax->list #'(id ...)) expr)]
+    [(shared: ([id rhs] ...) body)
+     (rename-ids (syntax->list #'(id ...)) expr)]
+    [(type-case: type val clause ...)
+     (quasisyntax/loc expr
+       (#,(car (syntax-e expr)) type val
+        #,@(map (lambda (clause)
+                  (syntax-case clause ()
+                    [[variant (id ...) ans]
+                     (rename-ids (syntax->list #'(id ...)) clause)]
+                    [_ clause]))
+                (syntax->list #'(clause ...)))))]
+    [_ expr]))
+
 (define-for-syntax (typecheck-defns tl datatypes aliases init-env init-variants just-id? orig-let-polys)
   (let* ([types (filter
                  values
@@ -1422,14 +1501,14 @@
           (map
            (lambda (tl)
              (let typecheck ([expr tl] [env env])
-               (syntax-case expr (: require: define-type: define: define-values: 
-                                    define-type-alias define-syntax: define-syntax-rule:
-                                    lambda: begin: local: letrec: let: let*: shared:
-                                    begin: cond: case: if: when: unless:
-                                    or: and: set!: trace:
-                                    type-case: quote: quasiquote: time:
-                                    list vector values: try
-                                    module+:)
+               (syntax-case (rename expr) (: require: define-type: define: define-values: 
+                                             define-type-alias define-syntax: define-syntax-rule:
+                                             lambda: begin: local: letrec: let: let*: shared:
+                                             begin: cond: case: if: when: unless:
+                                             or: and: set!: trace:
+                                             type-case: quote: quasiquote: time:
+                                             list vector values: try
+                                             module+:)
                  [(module+: . _)
                   ;; can ignore
                   (void)]
