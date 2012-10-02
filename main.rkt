@@ -352,8 +352,12 @@
 
  (define (add-begin proc)
    (lambda (stx)
-     ;; Insert a `begin' wrapper so we can `local-expand' just once:
-     #`(begin #,(proc stx)))))
+     (define result (proc stx))
+     (if (syntax? result)
+         ;; Insert a `begin' wrapper so we can `local-expand' just once:
+         #`(begin #,result)
+         ;; Otherwise, let expander report the error:
+         result))))
 
 (define-syntax define-syntax:
   (check-top
