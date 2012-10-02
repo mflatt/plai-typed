@@ -1,8 +1,11 @@
 #lang plai-typed
 
-(require (typed-in racket/base
-                   [expt : (number number -> number)]
-                   [vector-immutable : ('a 'a 'a -> (vectorof 'a))]))
+(require (rename-in
+          (typed-in racket/base
+                    [expt : (number number -> number)]
+                    [+ : (number number -> number)]
+                    [vector-immutable : ('a 'a 'a -> (vectorof 'a))])
+          [+ plus]))
 
 (define x : s-expression '(a 2 "c" '(d)))
 (define (f [y : number]) y)
@@ -10,6 +13,7 @@
 (print-only-errors #t)
 
 (test 1024 (expt 2 10))
+(test 7 (plus 3 4))
 (test (vector 3 2 0) (vector-immutable 3 2 0))
 (test (make-vector 3 2) (vector-immutable 2 2 2))
 (test (make-vector 3 "apple") (vector-immutable "apple" "apple" "apple"))

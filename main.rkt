@@ -50,7 +50,7 @@
          #%app #%datum #%top unquote unquote-splicing
          (rename-out [module-begin #%module-begin]
                      [top-interaction #%top-interaction])
-         else typed-in
+         else typed-in rename-in
 
          (for-syntax (all-from-out racket/base))
 
@@ -262,43 +262,55 @@
        [(_ clause ...)
         (with-syntax ([(new-clause ...)
                        (map (lambda (clause)
-                              (syntax-case clause (typed-in :)
-                                [(typed-in lib
-                                           [id : type]
-                                           ...)
-                                 (begin
-                                   (let ([lib #'lib]
-                                         [ids (syntax->list #'(id ...))])
-                                     (unless (module-path? (syntax->datum lib))
-                                       (raise-syntax-error #f "bad module path" stx lib))
-                                     (for ([id (in-list ids)])
-                                       (unless (identifier? id)
-                                         (raise-syntax-error #f "expected an identifier" stx id))))
-                                   (syntax/loc clause (only-in lib id ...)))]
-                                [mp
-                                 (module-path? (syntax-e #'mp))
-                                 (let ([s (syntax-e #'mp)])
-                                   (unless (module-declared? (if (and (pair? s) (eq? (car s 'submod)))
-                                                                 `(,@s plai-typed)
-                                                                 `(submod ,s plai-typed))
-                                                             #t)
-                                     (raise-syntax-error #f
-                                                         "not a `plai-typed' module"
-                                                         stx
-                                                         #'mp))
-                                   (let ([new-clause
-                                          (if (and (pair? s) (eq? (car s 'submod)))
-                                              (quasisyntax/loc clause (#,@#'mp plai-typed))
-                                              (quasisyntax/loc clause (submod mp plai-typed)))])
-                                     (datum->syntax clause
-                                                    (syntax-e new-clause)
-                                                    clause
-                                                    clause)))]
-                                [_
-                                 (raise-syntax-error #f
-                                                     "not a valid require specification"
-                                                     stx
-                                                     clause)]))
+                              (let loop ([clause clause])
+                                (syntax-case clause (typed-in rename-in :)
+                                  [(typed-in lib
+                                             [id : type]
+                                             ...)
+                                   (begin
+                                     (let ([lib #'lib]
+                                           [ids (syntax->list #'(id ...))])
+                                       (unless (module-path? (syntax->datum lib))
+                                         (raise-syntax-error #f "bad module path" stx lib))
+                                       (for ([id (in-list ids)])
+                                         (unless (identifier? id)
+                                           (raise-syntax-error #f "expected an identifier" stx id))))
+                                     (syntax/loc clause (only-in lib id ...)))]
+                                  [(rename-in sub-clause [old-id new-id] ...)
+                                   (let ([sub (loop #'sub-clause)])
+                                     (define (check id)
+                                       (unless (identifier? id) 
+                                         (raise-syntax-error #f "expected an identifier" clause id)))
+                                     (for ([old-id (in-list (syntax->list #'(old-id ...)))]
+                                           [new-id (in-list (syntax->list #'(new-id ...)))])
+                                       (check old-id)
+                                       (check new-id))
+                                     (with-syntax ([sub sub])
+                                       (syntax/loc clause (rename-in sub [old-id new-id] ...))))]
+                                  [mp
+                                   (module-path? (syntax-e #'mp))
+                                   (let ([s (syntax-e #'mp)])
+                                     (unless (module-declared? (if (and (pair? s) (eq? (car s 'submod)))
+                                                                   `(,@s plai-typed)
+                                                                   `(submod ,s plai-typed))
+                                                               #t)
+                                       (raise-syntax-error #f
+                                                           "not a `plai-typed' module"
+                                                           stx
+                                                           #'mp))
+                                     (let ([new-clause
+                                            (if (and (pair? s) (eq? (car s 'submod)))
+                                                (quasisyntax/loc clause (#,@#'mp plai-typed))
+                                                (quasisyntax/loc clause (submod mp plai-typed)))])
+                                       (datum->syntax clause
+                                                      (syntax-e new-clause)
+                                                      clause
+                                                      clause)))]
+                                  [_
+                                   (raise-syntax-error #f
+                                                       "not a valid require specification"
+                                                       stx
+                                                       clause)])))
                             (syntax->list #'(clause ...)))])
           #'(require new-clause ...))]))))
 
@@ -1371,12 +1383,33 @@
                    append
                    (map
                     (lambda (stx)
-                      (syntax-case stx (require: typed-in :)
-                        [(require: (typed-in lib (id : type) ...) ...)
-                         (map (lambda (id type)
-                                (cons id (parse-type type)))
-                              (syntax->list #'(id ... ...))
-                              (syntax->list #'(type ... ...)))]
+                      (syntax-case stx (require:)
+                        [(require: spec ...)
+                         (let loop ([specs (syntax->list #'(spec ...))])
+                           (apply
+                            append
+                            (map (lambda (spec)
+                                   (syntax-case spec (typed-in rename-in :)
+                                     [(typed-in lib (id : type) ...)
+                                      (map (lambda (id type)
+                                             (cons id (parse-type type)))
+                                           (syntax->list #'(id ...))
+                                           (syntax->list #'(type ...)))]
+                                     [(rename-in spec [old-id new-id] ...)
+                                      (let ([l (loop (list #'spec))])
+                                        (define old-ids (syntax->list #'(old-id ...)))
+                                        (define new-ids (syntax->list #'(old-id ...)))
+                                        (map (lambda (p)
+                                               (let loop ([old-ids old-ids]
+                                                          [new-ids new-ids])
+                                                 (cond
+                                                  [(null? old-ids) p]
+                                                  [(free-identifier=? (car old-ids) (car p))
+                                                   (cons (car new-ids) (cdr p))]
+                                                  [else (loop (cdr old-ids) (cdr new-ids))])))
+                                             l))]
+                                     [_ null]))
+                                 specs)))]
                         [else
                          null]))
                     tl))]

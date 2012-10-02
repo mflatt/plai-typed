@@ -1,5 +1,6 @@
 #lang plai-typed
-(require "basic.rkt")
+(require (rename-in "basic.rkt"
+                    [seven-a Seven-A]))
 
 (test 9 ((some-v sid) 9))
 (test 'ok ((some-v sid) 'ok))
@@ -18,3 +19,5 @@
 
 (test 88 (twice 44))
 (test 3 (a-macro whatever we like this time around))
+
+(test 7 Seven-A)

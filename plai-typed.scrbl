@@ -82,10 +82,11 @@ using @racket[(id _arg-type ...)] is the same as using @racket[type]
 with each @racket['@#,racket[_arg-id]] replaced by the corresponding @racket[_arg-type].}
 
 
-@defform/subs[#:literals (typed-in :)
+@defform/subs[#:literals (typed-in rename-in :)
               (require spec ...)
               ([spec module-path
-                     (typed-in module-path [id : type] ...)])]{
+                     (typed-in module-path [id : type] ...)
+                     (rename-in spec [orig-id new-id] ...)])]{
 Imports from each @racket[module-path].
 
 When a @racket[module-path] is not wrapped with @racket[typed-in], then
