@@ -1402,7 +1402,7 @@
                                      [(rename-in spec [old-id new-id] ...)
                                       (let ([l (loop (list #'spec))])
                                         (define old-ids (syntax->list #'(old-id ...)))
-                                        (define new-ids (syntax->list #'(old-id ...)))
+                                        (define new-ids (syntax->list #'(new-id ...)))
                                         (map (lambda (p)
                                                (let loop ([old-ids old-ids]
                                                           [new-ids new-ids])

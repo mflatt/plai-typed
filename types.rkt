@@ -409,14 +409,22 @@
     (raise-typecheck-error expr a b #f)]))
 
 (define (lookup id env)
-  (or (ormap (lambda (p)
-               (and (free-identifier=? id (car p))
-                    (cdr p)))
-             env)
-      (raise-syntax-error 
-       #f
-       "free variable while typechecking"
-       id)))
+  (let loop ([env env] [symbolic? #f])
+    (cond
+     [(null? env)
+      (if symbolic?
+          #f
+          (raise-syntax-error 
+           #f
+           "free variable while typechecking"
+           id))]
+     [(free-identifier=? id (caar env))
+      (if (eq? (syntax-e id) (syntax-e (caar env)))
+          (cdar env)
+          (or (loop (cdr env) #t)
+              (and (not symbolic?)
+                   (cdar env))))]
+     [else (loop (cdr env) symbolic?)])))
 
 (define (add-srcs! r a)
   (let ([srcs (type-src r)])
