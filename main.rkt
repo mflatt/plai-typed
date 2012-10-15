@@ -276,6 +276,25 @@
                                          (unless (identifier? id)
                                            (raise-syntax-error #f "expected an identifier" stx id))))
                                      (syntax/loc clause (only-in lib id ...)))]
+                                  [(typed-in lib spec ...)
+                                   (for ([spec (in-list (syntax->list #'(spec ...)))])
+                                     (syntax-case spec (:)
+                                       [(id : type) (void)]
+                                       [(id something . _) 
+                                        (and (identifier? #'id)
+                                             (or (not (identifier? #'something))
+                                                 (not (free-identifier=? #'something #':))))
+                                        (raise-syntax-error
+                                           #f
+                                           (format "expected a colon after the identifier `~s'"
+                                                   (syntax-e #'id))
+                                           clause
+                                           #'something)]
+                                       [_ (raise-syntax-error
+                                           #f
+                                           "expected a specification of the form [<id> : <type>]"
+                                           clause
+                                           spec)]))]
                                   [(rename-in sub-clause [old-id new-id] ...)
                                    (let ([sub (loop #'sub-clause)])
                                      (define (check id)
