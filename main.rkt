@@ -309,22 +309,27 @@
                                   [mp
                                    (module-path? (syntax-e #'mp))
                                    (let ([s (syntax-e #'mp)])
-                                     (unless (module-declared? (if (and (pair? s) (eq? (car s 'submod)))
-                                                                   `(,@s plai-typed)
-                                                                   `(submod ,s plai-typed))
-                                                               #t)
-                                       (raise-syntax-error #f
-                                                           "not a `plai-typed' module"
-                                                           stx
-                                                           #'mp))
-                                     (let ([new-clause
-                                            (if (and (pair? s) (eq? (car s 'submod)))
-                                                (quasisyntax/loc clause (#,@#'mp plai-typed))
-                                                (quasisyntax/loc clause (submod mp plai-typed)))])
-                                       (datum->syntax clause
-                                                      (syntax-e new-clause)
-                                                      clause
-                                                      clause)))]
+                                     (define typed? 
+                                       (module-declared? (if (and (pair? s) (eq? (car s 'submod)))
+                                                             `(,@s plai-typed)
+                                                             `(submod ,s plai-typed))
+                                                         #t))
+                                     (unless typed?
+                                       (when (module-declared? s)
+                                         (raise-syntax-error #f
+                                                             "not a `plai-typed' module"
+                                                             stx
+                                                             #'mp)))
+                                     (if typed?
+                                         (let ([new-clause
+                                                (if (and (pair? s) (eq? (car s 'submod)))
+                                                    (quasisyntax/loc clause (#,@#'mp plai-typed))
+                                                    (quasisyntax/loc clause (submod mp plai-typed)))])
+                                           (datum->syntax clause
+                                                          (syntax-e new-clause)
+                                                          clause
+                                                          clause))
+                                         clause))]
                                   [_
                                    (raise-syntax-error #f
                                                        "not a valid require specification"
