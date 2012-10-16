@@ -430,8 +430,10 @@
   (let ([srcs (type-src r)])
     (cond
      [(not srcs) (set-type-src! r a)]
-     [(pair? srcs) (set-type-src! r (cons a srcs))]
-     [else (set-type-src! r (list a srcs))])))
+     [(pair? srcs) (unless (memq a srcs)
+                     (set-type-src! r (cons a srcs)))]
+     [else (unless (eq? a srcs)
+             (set-type-src! r (list a srcs)))])))
 
 (define (simplify! a)
   (if (tvar? a)
@@ -562,6 +564,10 @@
       (unify! expr a b)))
 
 (define (unify! expr a b)
+  (define (sub-unify! a b expr aa ba)
+    (add-srcs! aa a)
+    (add-srcs! ba b)
+    (unify! expr aa ba))
   (let ([a (simplify! a)]
         [b (simplify! b)])        
     (if (and (tvar? b)
@@ -609,36 +615,37 @@
                        (= (length (arrow-args b))
                           (length (arrow-args a))))
             (raise-typecheck-error expr a b))
-          (map (lambda (a b) (unify! expr a b)) (arrow-args a) (arrow-args b))
-          (unify! expr (arrow-result a) (arrow-result b))]
+          (map (lambda (aa ba) (sub-unify! a b expr aa ba)) 
+               (arrow-args a) (arrow-args b))
+          (sub-unify! a b expr (arrow-result a) (arrow-result b))]
          [(listof? a)
           (unless (listof? b)
             (raise-typecheck-error expr a b))
-          (unify! expr (listof-element a) (listof-element b))]
+          (sub-unify! a b expr (listof-element a) (listof-element b))]
          [(boxof? a)
           (unless (boxof? b)
             (raise-typecheck-error expr a b))
-          (unify! expr (boxof-element a) (boxof-element b))]
+          (sub-unify! a b expr (boxof-element a) (boxof-element b))]
          [(vectorof? a)
           (unless (vectorof? b)
             (raise-typecheck-error expr a b))
-          (unify! expr (vectorof-element a) (vectorof-element b))]
+          (sub-unify! a b expr (vectorof-element a) (vectorof-element b))]
          [(hashof? a)
           (unless (hashof? b)
             (raise-typecheck-error expr a b))
-          (unify! expr (hashof-key a) (hashof-key b))
-          (unify! expr (hashof-val a) (hashof-val b))]
+          (sub-unify! a b expr (hashof-key a) (hashof-key b))
+          (sub-unify! a b expr (hashof-val a) (hashof-val b))]
          [(tupleof? a)
           (unless (and (tupleof? b)
                        (= (length (tupleof-args a))
                           (length (tupleof-args b))))
             (raise-typecheck-error expr a b))
-          (map (lambda (a b) (unify! expr a b)) (tupleof-args a) (tupleof-args b))]
+          (map (lambda (aa ba) (sub-unify! a b expr aa ba)) (tupleof-args a) (tupleof-args b))]
          [(datatype? a)
           (unless (and (datatype? b)
                        (free-identifier=? (datatype-id a)
                                           (datatype-id b)))
             (raise-typecheck-error expr a b))
-          (map (lambda (a b) (unify! expr a b)) (datatype-args a) (datatype-args b))]
+          (map (lambda (aa ba) (sub-unify! a b expr aa ba)) (datatype-args a) (datatype-args b))]
          [else
           (raise-typecheck-error expr a b (format "unrecognized type ~s" a))]))))
