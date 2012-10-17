@@ -260,3 +260,8 @@
 (define-syntax (a-macro stx)
   #'(+ 1 2))
 (test 3 (a-macro whatever you like))
+
+
+(local ((define vertical (lambda (tree) : (optionof 'a)
+                           (vertical tree))))
+  vertical)

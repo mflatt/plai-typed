@@ -1484,7 +1484,7 @@
                                       (make-arrow
                                        #'id
                                        (map extract-arg-type (syntax->list #'args))
-                                       (parse-type #'result-type)))))]
+                                       (parse-mono-type #'result-type)))))]
                         [(define: id (lambda: args expr))
                          (list (cons #'id
                                      (create-defn
