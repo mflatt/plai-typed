@@ -29,6 +29,7 @@
                      [local: local]
                      [letrec: letrec] [let: let] [let*: let*]
                      [shared: shared]
+                     [parameterize: parameterize]
                      [cond: cond]
                      [case: case]
                      [if: if]
@@ -91,7 +92,7 @@
          (rename-out [read: read])
          
          box unbox set-box!
-         
+
          make-vector vector-ref vector-set! vector-length vector
          
          (rename-out [values: values])
@@ -100,12 +101,15 @@
 
          true false
 
+         make-parameter parameter-ref parameter-set!
+         
          number boolean symbol 
          (rename-out [string: string])
          s-expression
          -> 
          (rename-out [listof: listof]
                      [boxof: boxof]
+                     [parameterof: parameterof]
                      [vectorof: vectorof]
                      [hashof: hashof]
                      [void: void])
@@ -188,6 +192,7 @@
 (define-syntax boxof: type)
 (define-syntax vectorof: type)
 (define-syntax hashof: type)
+(define-syntax parameterof: type)
 (define void: void) ; allow as a function
 
 (define (member: a l)
@@ -195,13 +200,18 @@
 
 (define (to-string x) (format "~v" x))
 
+(define (parameter-ref p)
+  (p))
+(define (parameter-set! p v)
+  (p v))
+
 (define-for-syntax (is-type-keyword? a)
   (ormap (lambda (i)
            (free-identifier=? a i))
          (syntax->list
           #'(: number boolean symbol s-expression
                string: -> * listof: hashof:
-               boxof: vectorof:
+               boxof: vectorof: parameterof:
                void: optionof))))
 
 (define-for-syntax (is-keyword? a)
@@ -706,6 +716,14 @@
                              thing)]))
                   (syntax->list #'(thing ...)))]))))
 
+(define-syntax parameterize:
+  (check-top
+   (lambda (stx)
+     (syntax-case stx ()
+       [(_ ([param-expr rhs-expr] ...) e)
+        (syntax/loc stx
+          (parameterize ([param-expr rhs-expr] ...) e))]))))
+
 (define-for-syntax (make-let kind)
   (check-top
    (lambda (stx)
@@ -1125,7 +1143,7 @@
 ;; responsible for renaming at local-binding forms:
 (define-for-syntax (rename expr)
   (syntax-case expr (: lambda: local: letrec: let: let*: shared:
-                       type-case: )
+                       type-case:)
     [(lambda: (arg ...) . _)
      (rename-ids (map (lambda (arg)
                         (syntax-case arg (:)
@@ -1203,7 +1221,7 @@
                                (lambda (seen tenv t)
                                  (let loop ([t t])
                                    (syntax-case t (number boolean symbol string: s-expression
-                                                          gensym listof: boxof: hashof: void: -> 
+                                                          gensym listof: boxof: hashof: parameterof: void: -> 
                                                           vectorof: quote: * optionof)
                                      [(quote: id)
                                       (identifier? #'id)
@@ -1236,6 +1254,8 @@
                                       (make-vectorof t (loop #'elem))]
                                      [(hashof: key val)
                                       (make-hashof t (loop #'key) (loop #'val))]
+                                     [(parameterof: elem)
+                                      (make-parameterof t (loop #'elem))]
                                      [(a * more ...)
                                       (let ([m (syntax->list #'(more ...))])
                                         (let loop ([m m])
@@ -1564,7 +1584,8 @@
              (let typecheck ([expr tl] [env env])
                (syntax-case (rename expr) (: require: define-type: define: define-values: 
                                              define-type-alias define-syntax: define-syntax-rule:
-                                             lambda: begin: local: letrec: let: let*: shared:
+                                             lambda: begin: local: letrec: let: let*: 
+                                             shared: parameterize:
                                              begin: cond: case: if: when: unless:
                                              or: and: set!: trace:
                                              type-case: quote: quasiquote: time:
@@ -1671,6 +1692,14 @@
                                                  variants
                                                  #f
                                                  let-polys)])
+                    (typecheck #'expr env))]
+                 [(parameterize: ([param rhs] ...) expr)
+                  (begin
+                    (for ([param (in-list (syntax->list #'(param ...)))]
+                          [rhs (in-list (syntax->list #'(rhs ...)))])
+                      (unify! #'param 
+                              (typecheck param env)
+                              (make-parameterof rhs (typecheck rhs env))))
                     (typecheck #'expr env))]
                  [(cond: [ques ans] ...)
                   (let ([res-type (gen-tvar expr)])
@@ -2176,6 +2205,18 @@
                      (cons #'vector-length (POLY a (make-arrow #f
                                                                (list (make-vectorof #f a))
                                                                N)))
+
+                     (cons #'make-parameter (POLY a (make-arrow #f
+                                                                (list a)
+                                                                (make-parameterof #f a))))
+                     (cons #'parameter-ref (POLY a (make-arrow #f
+                                                               (list (make-parameterof #f a))
+                                                               a)))
+                     (cons #'parameter-set! (POLY a (make-arrow #f
+                                                                (list (make-parameterof #f a)
+                                                                      a)
+                                                                (make-vd #f))))
+                     
 
                      (cons #'string-append (make-arrow #f 
                                                        (list STR STR)

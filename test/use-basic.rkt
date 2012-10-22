@@ -28,3 +28,8 @@
         (set-box! (box-number 5) "apple")))
 
 (test (list) (unbox boxed-null))
+
+(test 7 (prm))
+(test 18 (parameterize ([prm 18])
+           (get-prm)))
+(test "5" ((get-prm-getter sprm)))

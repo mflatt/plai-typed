@@ -21,3 +21,6 @@
 (test 3 (a-macro whatever we like this time around))
 
 (test 7 Seven-A)
+
+(test 19 (parameterize ([prm 19])
+           (get-prm)))

@@ -261,7 +261,27 @@
   #'(+ 1 2))
 (test 3 (a-macro whatever you like))
 
+(test 'ok (begin
+            (local ((define vertical (lambda (tree) : (optionof 'a)
+                                             (vertical tree))))
+              vertical)
+            'ok))
 
-(local ((define vertical (lambda (tree) : (optionof 'a)
-                           (vertical tree))))
-  vertical)
+(define prm (make-parameter 5))
+(define sprm (make-parameter "5"))
+(test 5 (parameter-ref prm))
+(test (void) (parameter-set! prm 7))
+(test 7 (parameter-ref prm))
+(test 8
+      (parameterize ([prm 8])
+        (parameter-ref prm)))
+(define (get-prm) (parameter-ref prm))
+(define get-prm-getter : ((parameterof 'a) -> (-> 'a))
+  (lambda (p)
+    (lambda ()
+      (parameter-ref p))))
+(test 7 ((get-prm-getter prm)))
+(test "5" ((get-prm-getter sprm)))
+
+
+

@@ -220,7 +220,7 @@ declares he result type of the function.}
            (cond [test-expr expr] ... [else expr])]]
 )]{
 
-Conditionals. Each @scheme[test-expr]s must have type @scheme[boolean].}
+Conditionals. Each @scheme[test-expr] must have type @scheme[boolean].}
 
 @defform*[#:literals (else)
           [(case expr [(id ...) expr] ...)
@@ -246,6 +246,11 @@ Local binding.}
 
 @defform[(shared ([id expr] ...) expr)]{
 Cyclic- and shared-structure binding.}
+
+
+@defform[(parameterize ([param-expr val-expr] ...) expr)]{
+Dynamic binding. Each @racket[param-expr] must have type @racket[(parameterof _type)]
+where the corresponding @racket[val-expr] has type @racket[_type].}
 
 
 @defform[(set! id expr)]{
@@ -404,6 +409,12 @@ S-expressions.}
 )]{Vector primitives.}
 
 @deftogether[(
+@defthing[make-parameter ('a -> (parameterof 'a))]
+@defthing[parameter-ref ((parameterof 'a) -> 'a)]
+@defthing[parameter-set! ((parameterof 'a) 'a -> void)]
+)]{Parameter primitives.}
+
+@deftogether[(
 @defthing[make-hash ((listof ('a * 'b)) -> (hashof 'a 'b))]
 @defthing[hash ((listof ('a * 'b)) -> (hashof 'a 'b))]
 @defthing[hash-ref ((hashof 'a 'b) 'a -> (optionof 'b))]
@@ -479,6 +490,7 @@ Type for the empty tuple.}
 @defform[(listof type)]{Types for lists of elements.}
 @defform[(boxof type)]{Types for mutable boxes.}
 @defform[(vectorof type)]{Types for vectors of elements.}
+@defform[(parameterof type)]{Types for parameters.}
 @defform[(hashof type type)]{Types for hash tables.}
 
 @defform[(optionof type)]{Defined as

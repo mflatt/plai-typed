@@ -5,8 +5,8 @@
                        racket/base))
 
 (provide gen-tvar make-bool make-num make-sym make-str make-vd make-sexp
-         make-arrow make-listof make-boxof make-tupleof make-vectorof make-datatype
-         make-hashof
+         make-arrow make-listof make-boxof make-tupleof make-vectorof 
+         make-datatype make-hashof make-parameterof
          to-contract to-expression
          create-defn
          make-poly poly? poly-instance at-source instantiate-constructor-at
@@ -31,6 +31,7 @@
 (define-struct (vectorof type) (element) #:transparent)
 (define-struct (hashof type) (key val))
 (define-struct (tupleof type) (args))
+(define-struct (parameterof type) (element))
 (define-struct (datatype type) (id args))
 (define-struct (poly type) (tvar type) #:transparent)
 (define-struct (defn type) (base [rhs #:mutable] [insts #:mutable] [proto-rhs #:mutable]) #:transparent)
@@ -62,6 +63,7 @@
                                #,(loop (hashof-val type) tvar-names #t))]
      [(tupleof? type) #`(vector-immutable/c #,@(map (λ (x) (loop x tvar-names inside-mutable?))
                                                     (tupleof-args type)))]
+     [(parameterof? type) #`(parameter/c #,(loop (parameterof-element type) tvar-names #t))]
      [(poly? type) (if enforce-poly?
                        (let* ([name (gensym 'a)]
                               [tvar-names (hash-set tvar-names type name)])
@@ -105,6 +107,7 @@
                                     #,(loop (hashof-key type))
                                     #,(loop (hashof-val type)))]
      [(tupleof? type) #`(make-tupleof #f (list #,@(map loop (tupleof-args type))))]
+     [(parameterof? type) #`(make-parameterof #f #,(loop (parameterof-element type)))]
      [(poly? type) (let ([name (gensym)])
                      #`(let ([#,name (gen-tvar #f)])
                          (make-poly #f #,name #,(to-expression (poly-type type)
@@ -171,6 +174,7 @@
                                (if (null? a)
                                    '()
                                    (list* '* (car a) (loop (cdr a))))))))]
+   [(parameterof? t) `(parameterof ,((type->datum tmap) (parameterof-element t)))]
    [(datatype? t) (let ([name (syntax-e (datatype-id t))])
                     (if (null? (datatype-args t))
                         name
@@ -207,6 +211,9 @@
    [(tupleof? t) (make-tupleof (type-src t)
                                (map (instance old-tvar new-tvar)
                                     (tupleof-args t)))]
+   [(parameterof? t) (make-parameterof (type-src t)
+                                       ((instance old-tvar new-tvar)
+                                        (parameterof-element t)))]
    [(poly? t) (make-poly (type-src t)
                          (poly-tvar t)
                          ((instance old-tvar new-tvar)
@@ -239,6 +246,9 @@
                                (append (loop (hashof-key t))
                                        (loop (hashof-val t)))
                                null)]
+              [(parameterof? t) (if box-ok?
+                                    (loop (parameterof-element t))
+                                    null)]
               [(tupleof? t) (apply append
                                    (map loop (tupleof-args t)))]
               [(datatype? t) (apply append
@@ -333,6 +343,8 @@
         (loop (hashof-val t))]
        [(tupleof? t)
         (for-each loop (tupleof-args t))]
+       [(parameterof? t)
+        (loop (parameterof-element t))]
        [(datatype? t)
         (for-each loop (datatype-args t))]))
     t))
@@ -368,6 +380,9 @@
    [(tupleof? t) (make-tupleof
                   (type-src t)
                   (map clone (tupleof-args t)))]
+   [(parameterof? t) (make-parameterof
+                      (type-src t)
+                      (clone (parameterof-element t)))]
    [(datatype? t) (make-datatype
                    (type-src t)
                    (datatype-id t)
@@ -481,6 +496,8 @@
    [(poly? t) (make-poly (type-src t)
                          (poly-tvar t)
                          (simplify!* (poly-type t)))]
+   [(parameterof? t) (make-parameterof (type-src t)
+                                       (simplify!* (parameterof-element t)))]
    [(datatype? t) (if (null? (datatype-args t))
                       t
                       (make-datatype (type-src t)
@@ -550,6 +567,8 @@
    [(tupleof? b)
     (ormap (lambda (arg) (occurs? a arg))
            (tupleof-args b))]
+   [(parameterof? b)
+    (occurs? a (parameterof-element b))]
    [(datatype? b)
     (ormap (lambda (arg) (occurs? a arg))
            (datatype-args b))]
@@ -641,6 +660,10 @@
                           (length (tupleof-args b))))
             (raise-typecheck-error expr a b))
           (map (lambda (aa ba) (sub-unify! a b expr aa ba)) (tupleof-args a) (tupleof-args b))]
+         [(parameterof? a)
+          (unless (parameterof? b)
+            (raise-typecheck-error expr a b))
+          (sub-unify! a b expr (parameterof-element a) (parameterof-element b))]
          [(datatype? a)
           (unless (and (datatype? b)
                        (free-identifier=? (datatype-id a)
