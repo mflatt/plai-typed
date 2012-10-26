@@ -634,8 +634,8 @@
                        (= (length (arrow-args b))
                           (length (arrow-args a))))
             (raise-typecheck-error expr a b))
-          (map (lambda (aa ba) (sub-unify! a b expr aa ba)) 
-               (arrow-args a) (arrow-args b))
+          (for-each (lambda (aa ba) (sub-unify! a b expr aa ba)) 
+                    (arrow-args a) (arrow-args b))
           (sub-unify! a b expr (arrow-result a) (arrow-result b))]
          [(listof? a)
           (unless (listof? b)
@@ -659,7 +659,7 @@
                        (= (length (tupleof-args a))
                           (length (tupleof-args b))))
             (raise-typecheck-error expr a b))
-          (map (lambda (aa ba) (sub-unify! a b expr aa ba)) (tupleof-args a) (tupleof-args b))]
+          (for-each (lambda (aa ba) (sub-unify! a b expr aa ba)) (tupleof-args a) (tupleof-args b))]
          [(parameterof? a)
           (unless (parameterof? b)
             (raise-typecheck-error expr a b))
@@ -669,6 +669,6 @@
                        (free-identifier=? (datatype-id a)
                                           (datatype-id b)))
             (raise-typecheck-error expr a b))
-          (map (lambda (aa ba) (sub-unify! a b expr aa ba)) (datatype-args a) (datatype-args b))]
+          (for-each (lambda (aa ba) (sub-unify! a b expr aa ba)) (datatype-args a) (datatype-args b))]
          [else
           (raise-typecheck-error expr a b (format "unrecognized type ~s" a))]))))
