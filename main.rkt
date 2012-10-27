@@ -1291,7 +1291,8 @@
                                                         datatypes)
                                                  (make-datatype t (car (syntax-e t)) (map loop types)))
                                             (ormap (lambda (d)
-                                                     (and (free-identifier=? (car d) #'id)
+                                                     (and (and (identifier? #'id)
+                                                               (free-identifier=? (car d) #'id))
                                                           (begin
                                                             (unless (= (length (cadr d)) (length types))
                                                               
