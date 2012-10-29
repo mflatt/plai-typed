@@ -1,6 +1,7 @@
 #lang racket/base
 (require racket/list
          racket/pretty
+         syntax/srcloc
          (for-template racket/contract/base
                        racket/base))
 
@@ -390,11 +391,20 @@
    [(poly? t) (error 'clone "shouldn't clone poly")]
    [else (error 'clone "unrecognized: ~e" t)]))
 
+(define (syntax-srcloc stx)
+  (srcloc (syntax-source stx)
+          (syntax-line stx)
+          (syntax-column stx)
+          (syntax-position stx)
+          (syntax-span stx)))
+
 (define (extract-srcs! r ht)
   (cond
    [(not r) (void)]
-   [(syntax? r)
-    (hash-set! ht r #t)]
+   [(and (syntax? r)
+         (syntax-original? (syntax-local-introduce r)))
+    (define key (cons (syntax->datum r) (syntax-srcloc r)))
+    (hash-update! ht key (lambda (v) (or v r)) r)]
    [(type? r) (extract-srcs! (type-src r) ht)]
    [(list? r) (map (lambda (i)
                      (extract-srcs! i ht))
@@ -403,23 +413,41 @@
 (define raise-typecheck-error
   (case-lambda
    [(main-expr a b reason)
-    (let ([exprs (let ([ht (make-hasheq)])
+    (let ([exprs (let ([ht (make-hash)])
+                   (extract-srcs! ht main-expr)
                    (extract-srcs! a ht)
                    (extract-srcs! b ht)
-                   (hash-map ht (lambda (k v) k)))])
+                   (hash-map ht (lambda (k v) v)))])
+      (define all-exprs 
+        (if main-expr
+            (cons main-expr (remq main-expr exprs))
+            exprs))
       (raise
        (make-exn:fail:syntax
         (parameterize ([print-as-expression #f])
-          (format "typecheck failed~a: ~a vs ~a"
+          (format "~atypecheck failed~a: ~a vs ~a~a"
+                  (if (and (error-print-source-location)
+                           main-expr)
+                      (let ([s (source-location->string (syntax-srcloc main-expr))])
+                        (if (equal? s "")
+                            ""
+                            (string-append s ": ")))
+                      "")
                   (if reason
                       (format " (~a)" reason)
                       "")
                   (pretty-format ((type->datum (make-hasheq)) a))
-                  (pretty-format ((type->datum (make-hasheq)) b))))
+                  (pretty-format ((type->datum (make-hasheq)) b))
+                  (if (and (error-print-source-location)
+                           (pair? all-exprs))
+                      (apply
+                       string-append
+                       "\n  sources:"
+                       (for/list ([e (in-list all-exprs)])
+                         (format "\n   ~s" (syntax->datum e))))
+                      "")))
         (current-continuation-marks)
-        (apply list (if main-expr
-                        (cons main-expr exprs)
-                        exprs)))))]
+        all-exprs)))]
    [(expr a b)
     (raise-typecheck-error expr a b #f)]))
 
