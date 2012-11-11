@@ -33,3 +33,5 @@
 (test 18 (parameterize ([prm 18])
            (get-prm)))
 (test "5" ((get-prm-getter sprm)))
+
+(test "dog?" (add-char "dog" #\?))

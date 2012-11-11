@@ -5,7 +5,7 @@
          (for-template racket/contract/base
                        racket/base))
 
-(provide gen-tvar make-bool make-num make-sym make-str make-vd make-sexp
+(provide gen-tvar make-bool make-num make-sym make-str make-chr make-vd make-sexp
          make-arrow make-listof make-boxof make-tupleof make-vectorof 
          make-datatype make-hashof make-parameterof
          to-contract to-expression
@@ -26,6 +26,7 @@
 (define-struct (sexp type) ())
 (define-struct (vd type) ())
 (define-struct (str type) ())
+(define-struct (chr type) ())
 (define-struct (arrow type) (args result) #:transparent)
 (define-struct (listof type) (element))
 (define-struct (boxof type) (element))
@@ -54,6 +55,7 @@
                        s-exp?)]
      [(vd? type) #'void?]
      [(str? type) #'string?]
+     [(chr? type) #'char?]
      [(arrow? type)
       #`(-> #,@(map (λ (x) (loop x tvar-names inside-mutable?)) (arrow-args type))
             #,(loop (arrow-result type) tvar-names inside-mutable?))]
@@ -99,6 +101,7 @@
      [(sexp? type) #'(make-sexp #f)]
      [(vd? type) #'(make-vd #f)]
      [(str? type) #'(make-str #f)]
+     [(chr? type) #'(make-chr #f)]
      [(arrow? type) #`(make-arrow #f (list #,@(map loop (arrow-args type)))
                                   #,(loop (arrow-result type)))]
      [(listof? type) #`(make-listof #f #,(loop (listof-element type)))]
@@ -157,6 +160,7 @@
    [(bool? t) 'boolean]
    [(sym? t) 'symbol]
    [(str? t) 'string]
+   [(chr? t) 'char]
    [(sexp? t) 's-expression]
    [(vd? t) 'void]
    [(arrow? t) `(,@(map (type->datum tmap) (arrow-args t))
@@ -360,6 +364,7 @@
    [(sym? t) (make-sym (type-src t))]
    [(sexp? t) (make-sexp (type-src t))]
    [(str? t) (make-str (type-src t))]
+   [(chr? t) (make-chr (type-src t))]
    [(vd? t) (make-vd (type-src t))]
    [(arrow? t) (make-arrow
                 (type-src t)
@@ -656,6 +661,9 @@
             (raise-typecheck-error expr a b))]
          [(str? a)
           (unless (str? b)
+            (raise-typecheck-error expr a b))]
+         [(chr? a)
+          (unless (chr? b)
             (raise-typecheck-error expr a b))]
          [(arrow? a)
           (unless (and (arrow? b)

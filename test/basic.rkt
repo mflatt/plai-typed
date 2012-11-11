@@ -283,5 +283,8 @@
 (test 7 ((get-prm-getter prm)))
 (test "5" ((get-prm-getter sprm)))
 
-
-
+(define (add-char s c) (string-append s (list->string (list c))))
+(test #\a (string-ref "cat" 1))
+(test (list #\c #\a #\t) (string->list "cat"))
+(test "cat" (list->string (list #\c #\a #\t)))
+(test "cat!" (add-char "cat" #\!))

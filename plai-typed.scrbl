@@ -168,8 +168,9 @@ An expression can be a literal constant that is a number (type
 @scheme[symbol]) written with @scheme[quote] or @litchar{'},
 an S-expression (type
 @scheme[s-expression]) also written with @scheme[quote] or @litchar{'},
-@scheme[#t] (type @scheme[boolean]), or @scheme[#f] (type
-@scheme[boolean]). An expression also can be a bound identifier (in
+@scheme[#t] (type @scheme[boolean]), @scheme[#f] (type
+@scheme[boolean]), or a character (type @scheme[char]). 
+An expression also can be a bound identifier (in
 which case its type comes from its binding).
 
 @defthing[true boolean]
@@ -355,7 +356,14 @@ Symbol primitive.}
 @defthing[to-string ('a -> string)]
 @defthing[string->symbol (string -> symbol)]
 @defthing[symbol->string (symbol -> string)]
+@defthing[string-ref (string number -> char)]
 )]{String primitives.}
+
+@deftogether[(
+@defthing[char=? (char char -> boolean)]
+@defthing[string->list (string -> (listof char))]
+@defthing[list->string ((listof char) -> string)]
+)]{Character primitives.}
 
 @deftogether[(
 @defthing[s-exp-symbol? (s-expression -> boolean)]
@@ -467,6 +475,7 @@ Shows the time taken to evaluate @racket[expr].}
 @defidform[boolean]
 @defidform[symbol]
 @defidform[string]
+@defidform[char]
 @defidform[s-expression]
 @defidform[void]
 )]{Primitive types.

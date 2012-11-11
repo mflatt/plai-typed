@@ -79,6 +79,8 @@
          string-append to-string
          display
 
+         char=? string-ref string->list list->string
+
          (rename-out [make-hash: make-hash]
                      [hash: hash]
                      [hash-ref: hash-ref])
@@ -105,6 +107,7 @@
          
          number boolean symbol 
          (rename-out [string: string])
+         char
          s-expression
          -> 
          (rename-out [listof: listof]
@@ -186,6 +189,7 @@
 (define-syntax boolean type)
 (define-syntax symbol type)
 (define-syntax string: type)
+(define-syntax char type)
 (define-syntax s-expression type)
 (define-syntax -> type)
 (define-syntax listof: type)
@@ -209,7 +213,7 @@
   (ormap (lambda (i)
            (free-identifier=? a i))
          (syntax->list
-          #'(: number boolean symbol s-expression
+          #'(: number boolean symbol char s-expression
                string: -> * listof: hashof:
                boxof: vectorof: parameterof:
                void: optionof))))
@@ -1220,7 +1224,7 @@
                      (letrec ([parse-one
                                (lambda (seen tenv t)
                                  (let loop ([t t])
-                                   (syntax-case t (number boolean symbol string: s-expression
+                                   (syntax-case t (number boolean symbol string: char s-expression
                                                           gensym listof: boxof: hashof: parameterof: void: -> 
                                                           vectorof: quote: * optionof)
                                      [(quote: id)
@@ -1240,6 +1244,7 @@
                                      [symbol (make-sym t)]
                                      [s-expression (make-sexp t)]
                                      [string: (make-str t)]
+                                     [char (make-chr t)]
                                      [void: (make-vd t)]
                                      [(gensym who) (gen-tvar #'who)]
                                      [(arg-type ... -> result-type)
@@ -1426,6 +1431,7 @@
                           [(some e) (loop #'e)]
                           [(quote: a) #t]
                           [_ (or (string? (syntax-e expr))
+                                 (char? (syntax-e expr))
                                  (number? (syntax-e expr))
                                  (boolean? (syntax-e expr)))])))]
          [req-env (apply
@@ -1895,6 +1901,8 @@
                     (make-num expr)]
                    [(string? (syntax-e expr))
                     (make-str expr)]
+                   [(char? (syntax-e expr))
+                    (make-chr expr)]
                    [(eq? (void) (syntax-e expr))
                     (void)]
                    [else
@@ -1949,6 +1957,7 @@
                         [N (make-num #f)]
                         [B (make-bool #f)]
                         [STR (make-str #f)]
+                        [CHAR (make-chr #f)]
                         [SYM (make-sym #f)])
                     (define-syntax-rule (POLY a e)
                       (let ([a (gen-tvar #f)]) (make-poly #f a e)))
@@ -1993,6 +2002,10 @@
                                                   (list STR
                                                         STR)
                                                   B))
+                     (cons #'char=? (make-arrow #f 
+                                                (list CHAR
+                                                      CHAR)
+                                                B))
                      (cons #'make-hash: (POLY a (POLY b (make-arrow #f
                                                                     (list (make-listof 
                                                                            #f
@@ -2240,6 +2253,15 @@
                                            (make-arrow #f
                                                        (list a)
                                                        (make-vd #f))))
+                     (cons #'string-ref (make-arrow #f
+                                                    (list STR N)
+                                                    CHAR))
+                     (cons #'string->list (make-arrow #f
+                                                      (list STR)
+                                                      (make-listof #f CHAR)))
+                     (cons #'list->string (make-arrow #f
+                                                      (list (make-listof #f CHAR))
+                                                      STR))
                      (cons #'none (POLY a (make-arrow #f 
                                                       (list) 
                                                       (make-datatype #f #'optionof (list a)))))
