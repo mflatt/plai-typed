@@ -407,7 +407,7 @@
   (cond
    [(not r) (void)]
    [(and (syntax? r)
-         (syntax-original? (syntax-local-introduce r)))
+         (syntax-source (syntax-local-introduce r)))
     (define key (cons (syntax->datum r) (syntax-srcloc r)))
     (hash-update! ht key (lambda (v) (or v r)) r)]
    [(type? r) (extract-srcs! (type-src r) ht)]
