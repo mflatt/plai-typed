@@ -214,6 +214,8 @@ keyword.}
 A procedure. When a type is written after @scheme[(id/ty ...)], it
 declares he result type of the function.}
 
+@defidform[λ]{An alias for @racket[lambda].}
+
 @deftogether[(
 @defform[(if test-expr expr expr)]
 @defform*[#:literals (else)

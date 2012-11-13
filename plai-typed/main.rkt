@@ -25,6 +25,7 @@
          (rename-out [define: define]
                      [define-values: define-values]
                      [lambda: lambda]
+                     [lambda: λ]
                      [begin: begin]
                      [local: local]
                      [letrec: letrec] [let: let] [let*: let*]
