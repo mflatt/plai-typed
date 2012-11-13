@@ -288,3 +288,25 @@
 (test (list #\c #\a #\t) (string->list "cat"))
 (test "cat" (list->string (list #\c #\a #\t)))
 (test "cat!" (add-char "cat" #\!))
+
+(require (opaque-type-in racket/base
+                         [bstring bytes?])
+         (typed-in racket/base 
+                   [bytes : (number number -> bstring)]
+                   [bytes-ref : (bstring number -> number)]))
+(test 10 (bytes-ref (bytes 5 10) 1))
+(define (extract-first s)
+  (bytes-ref s 0))
+(define (generate-bstring a b) : bstring
+  (bytes a b))
+
+(define flonum? #t)
+(require (rename-in (opaque-type-in racket/base
+                                    [fl flonum?])
+                    [fl flonum]
+                    [flonum? real-flonum?])
+         (typed-in racket/base
+                   [exact->inexact : (number -> flonum)])
+         (typed-in racket/flonum
+                   [fl+ : (flonum flonum -> flonum)]))
+(test (exact->inexact 10.0) (fl+ (exact->inexact 6) (exact->inexact 4)))

@@ -35,3 +35,5 @@
 (test "5" ((get-prm-getter sprm)))
 
 (test "dog?" (add-char "dog" #\?))
+
+(test 65 (extract-first #"ABC"))

@@ -24,3 +24,6 @@
 
 (test 19 (parameterize ([prm 19])
            (get-prm)))
+
+(define bs : bstring (generate-bstring 65 78))
+(test 65 (extract-first bs))

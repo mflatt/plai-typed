@@ -82,21 +82,28 @@ using @racket[(id _arg-type ...)] is the same as using @racket[type]
 with each @racket['@#,racket[_arg-id]] replaced by the corresponding @racket[_arg-type].}
 
 
-@defform/subs[#:literals (typed-in rename-in :)
+@defform/subs[#:literals (typed-in opaque-type-in rename-in :)
               (require spec ...)
               ([spec module-path
                      (typed-in module-path [id : type] ...)
+                     (opaque-type-in module-path [type-id predicate-id] ...)
                      (rename-in spec [orig-id new-id] ...)])]{
 Imports from each @racket[module-path].
 
-When a @racket[module-path] is not wrapped with @racket[typed-in], then
+When a @racket[module-path] is not wrapped with @racket[typed-in] or @racket[opaque-type-in], then
 @racket[module-path] must refer to a module that is implemented with
 @racketmodname[plai-typed].
 
 When @racket[module-path] is wrapped with @racket[typed-in], then only the
 specified @racket[id]s are imported from @racket[module-path], and the
 type system assumes (without static or additional dynamic checks) the
-given @racket[type] for each @racket[id].}
+given @racket[type] for each @racket[id].
+
+When @racket[module-path] is wrapped with @racket[opaque-typed-in],
+then the corresponding @racket[type-id]s are bound as opaque
+datatypes, where @racket[predicate-id] from @racket[module-path] is a
+run-time predicate (used for contracts as needed for cooperation with
+untyped code) for instances of the datatype.}
 
 
 @defform[(trace id ...)]{
@@ -518,6 +525,7 @@ and used, for example, for the result of @racket[hash-ref].}
 
 @deftogether[(
 @defidform[typed-in]
+@defidform[opaque-type-in]
 @defidform[:]
 )]{
 Syntactic literals for use in declarations such as @racket[define] and @racket[require].}

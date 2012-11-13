@@ -7,7 +7,7 @@
 
 (provide gen-tvar make-bool make-num make-sym make-str make-chr make-vd make-sexp
          make-arrow make-listof make-boxof make-tupleof make-vectorof 
-         make-datatype make-hashof make-parameterof
+         make-datatype make-opaque-datatype make-hashof make-parameterof
          to-contract to-expression
          create-defn
          make-poly poly? poly-instance at-source instantiate-constructor-at
@@ -35,6 +35,7 @@
 (define-struct (tupleof type) (args))
 (define-struct (parameterof type) (element))
 (define-struct (datatype type) (id args))
+(define-struct (opaque-datatype datatype) (pred))
 (define-struct (poly type) (tvar type) #:transparent)
 (define-struct (defn type) (base [rhs #:mutable] [insts #:mutable] [proto-rhs #:mutable]) #:transparent)
 
@@ -73,6 +74,8 @@
                          #`(let ([#,name (new-∀/c '#,name)])
                              #,(loop (poly-type type) tvar-names inside-mutable?)))
                        (loop (poly-type type) tvar-names inside-mutable?))]
+     [(opaque-datatype? type) 
+      (opaque-datatype-pred type)]
      [(datatype? type) 
       (datum->syntax 
        (datatype-id type)
@@ -118,6 +121,10 @@
                                                                (hash-set tvar-names
                                                                          (poly-tvar type)
                                                                          name)))))]
+     [(opaque-datatype? type) #`(make-opaque-datatype #f
+                                                      (quote-syntax #,(datatype-id type))
+                                                      null
+                                                      (quote-syntax #,(opaque-datatype-pred type)))]
      [(datatype? type) #`(make-datatype #f
                                         (quote-syntax #,(datatype-id type))
                                         (list #,@(map loop (datatype-args type))))]
@@ -389,6 +396,11 @@
    [(parameterof? t) (make-parameterof
                       (type-src t)
                       (clone (parameterof-element t)))]
+   [(opaque-datatype? t) (make-opaque-datatype
+                          (type-src t)
+                          (datatype-id t)
+                          null
+                          (opaque-datatype-pred t))]
    [(datatype? t) (make-datatype
                    (type-src t)
                    (datatype-id t)

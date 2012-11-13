@@ -52,7 +52,7 @@
          #%app #%datum #%top unquote unquote-splicing
          (rename-out [module-begin #%module-begin]
                      [top-interaction #%top-interaction])
-         else typed-in rename-in
+         else typed-in rename-in opaque-type-in
 
          (for-syntax (all-from-out racket/base))
 
@@ -278,7 +278,7 @@
         (with-syntax ([(new-clause ...)
                        (map (lambda (clause)
                               (let loop ([clause clause])
-                                (syntax-case clause (typed-in rename-in :)
+                                (syntax-case clause (typed-in rename-in opaque-type-in :)
                                   [(typed-in lib
                                              [id : type]
                                              ...)
@@ -321,6 +321,18 @@
                                        (check new-id))
                                      (with-syntax ([sub sub])
                                        (syntax/loc clause (rename-in sub [old-id new-id] ...))))]
+                                  [(opaque-type-in lib [id predicate-id] ...)                                   
+                                   (let ()
+                                     (define (check id)
+                                       (unless (identifier? id) 
+                                         (raise-syntax-error #f "expected an identifier" clause id)))
+                                     (for ([id (in-list (syntax->list #'(id ...)))]
+                                           [predicate-id (in-list (syntax->list #'(predicate-id ...)))])
+                                       (check id)
+                                       (check predicate-id))
+                                     (syntax/loc clause (only-in lib predicate-id ...
+                                                                 ;; Also import predicate as `id':
+                                                                 [predicate-id id] ...)))]
                                   [mp
                                    (module-path? (syntax-e #'mp))
                                    (let ([s (syntax-e #'mp)])
@@ -354,6 +366,9 @@
           #'(require new-clause ...))]))))
 
 (define-syntax typed-in
+  (lambda (stx)
+    (raise-syntax-error #f "allowed only in `require'" stx)))
+(define-syntax opaque-type-in
   (lambda (stx)
     (raise-syntax-error #f "allowed only in `require'" stx)))
 
@@ -1180,17 +1195,8 @@
                 (syntax->list #'(clause ...)))))]
     [_ expr]))
 
-(define-for-syntax (typecheck-defns tl datatypes aliases init-env init-variants just-id? orig-let-polys)
-  (let* ([types (filter
-                 values
-                 (map
-                  (lambda (stx)
-                    (syntax-case stx (define-type)
-                      [(define-type id . _)
-                       #'id]
-                      [else #f]))
-                  tl))]
-         [datatypes (append (filter
+(define-for-syntax (typecheck-defns tl datatypes opaques aliases init-env init-variants just-id? orig-let-polys)
+  (let* ([datatypes (append (filter
                              values
                              (map
                               (lambda (stx)
@@ -1201,6 +1207,47 @@
                                   [else #f]))
                               tl))
                             datatypes)]
+         [apply-renames (lambda (spec l cdrs-too?)
+                          (syntax-case spec (rename-in)
+                            [(rename-in spec [old-id new-id] ...)
+                             (let ()
+                               (define old-ids (syntax->list #'(old-id ...)))
+                               (define new-ids (syntax->list #'(new-id ...)))
+                               (map (lambda (p)
+                                      (let loop ([old-ids old-ids]
+                                                 [new-ids new-ids])
+                                        (cond
+                                         [(null? old-ids) p]
+                                         [(free-identifier=? (car old-ids) (car p))
+                                          (cons (car new-ids) (cdr p))]
+                                         [(and cdrs-too? 
+                                               (free-identifier=? (car old-ids) (cdr p)))
+                                          (cons (car p) (car new-ids))]
+                                         [else (loop (cdr old-ids) (cdr new-ids))])))
+                                    l))]))]
+         [opaques (append (apply
+                           append
+                           (map
+                            (lambda (stx)
+                              (syntax-case stx (require:)
+                                [(require: spec ...)
+                                 (let loop ([specs (syntax->list #'(spec ...))])
+                                   (apply
+                                    append
+                                    (map (lambda (spec)
+                                           (syntax-case spec (opaque-type-in rename-in)
+                                             [(opaque-type-in lib [id pred] ...)
+                                              (map cons 
+                                                   (syntax->list #'(id ...))
+                                                   (syntax->list #'(pred ...)))]
+                                             [(rename-in sub-spec . _)
+                                              (apply-renames spec (loop (list #'sub-spec)) #t)]
+                                             [_ null]))
+                                         specs)))]
+                                [else
+                                 null]))
+                            tl))
+                          opaques)]
          [aliases (append (for/fold ([aliases null]) ([stx (in-list tl)])
                             (syntax-case stx (define-type-alias quote:)
                               [(define-type-alias (name (quote: arg) ...) ty) 
@@ -1296,6 +1343,20 @@
                                                                     t))))
                                                         datatypes)
                                                  (make-datatype t (car (syntax-e t)) (map loop types)))
+                                            (and (identifier? #'id)
+                                                 (ormap (lambda (d)
+                                                          (and (free-identifier=? (car d) #'id)
+                                                               (if (null? types)
+                                                                   (make-opaque-datatype
+                                                                    t
+                                                                    (car (syntax-e t))
+                                                                    null
+                                                                    (cdr d))
+                                                                   (raise-syntax-error
+                                                                    #f
+                                                                    "bad type (incorrect use of a non-polymorphic type name)"
+                                                                    t))))
+                                                        opaques))
                                             (ormap (lambda (d)
                                                      (and (and (identifier? #'id)
                                                                (free-identifier=? (car d) #'id))
@@ -1341,6 +1402,15 @@
                                                                   t))))
                                                       datatypes)
                                                (make-datatype t t null))
+                                          (and (identifier? t)
+                                               (ormap (lambda (d)
+                                                        (and (free-identifier=? (car d) t)
+                                                             (make-opaque-datatype
+                                                              t
+                                                              t
+                                                              null
+                                                              (cdr d))))
+                                                      opaques))
                                           (and (identifier? t)
                                                (ormap (lambda (d)
                                                         (and (free-identifier=? (car d) t)
@@ -1451,19 +1521,8 @@
                                              (cons id (parse-type type)))
                                            (syntax->list #'(id ...))
                                            (syntax->list #'(type ...)))]
-                                     [(rename-in spec [old-id new-id] ...)
-                                      (let ([l (loop (list #'spec))])
-                                        (define old-ids (syntax->list #'(old-id ...)))
-                                        (define new-ids (syntax->list #'(new-id ...)))
-                                        (map (lambda (p)
-                                               (let loop ([old-ids old-ids]
-                                                          [new-ids new-ids])
-                                                 (cond
-                                                  [(null? old-ids) p]
-                                                  [(free-identifier=? (car old-ids) (car p))
-                                                   (cons (car new-ids) (cdr p))]
-                                                  [else (loop (cdr old-ids) (cdr new-ids))])))
-                                             l))]
+                                     [(rename-in sub-spec . _)
+                                      (apply-renames spec (loop (list #'sub-spec)) #f)]
                                      [_ null]))
                                  specs)))]
                         [else
@@ -1676,9 +1735,10 @@
                          (syntax->list #'(e ...)))
                     (typecheck #'last-e env))]
                  [(local: [defn ...] expr)
-                  (let-values ([(ty env datatypes aliases vars macros tl-tys)
+                  (let-values ([(ty env datatypes opaques aliases vars macros tl-tys)
                                 (typecheck-defns (syntax->list #'(defn ...))
                                                  datatypes
+                                                 opaques
                                                  aliases
                                                  env
                                                  variants
@@ -1692,9 +1752,10 @@
                  [(let*: . _)
                   (typecheck ((make-let 'let*) expr) env)]
                  [(shared: ([id rhs] ...) expr)
-                  (let-values ([(ty env datatypes aliases vars macros tl-tys)
+                  (let-values ([(ty env datatypes opaques aliases vars macros tl-tys)
                                 (typecheck-defns (syntax->list #'((define: id rhs) ...))
                                                  datatypes
+                                                 opaques
                                                  aliases
                                                  env
                                                  variants
@@ -1928,6 +1989,7 @@
                  req-env
                  init-env))
      datatypes
+     opaques
      aliases
      variants
      macros
@@ -1935,11 +1997,13 @@
 
 (define-for-syntax tl-env #f)
 (define-for-syntax tl-datatypes #f)
+(define-for-syntax tl-opaques #f)
 (define-for-syntax tl-aliases #f)
 (define-for-syntax tl-variants #f)
 
 (define-for-syntax (do-original-typecheck tl)
   (let ([datatypes null]
+        [opaques null]
         [aliases null]
         [init-env (let ([NN->N (make-arrow #f 
                                            (list (make-num #f)
@@ -2288,6 +2352,7 @@
                                              (make-poly #f a a)))))])
     (typecheck-defns (expand-includes tl)
                      (append import-datatypes datatypes)
+                     (append import-opaques opaques)
                      (append import-aliases aliases)
                      (append import-env init-env) 
                      (append import-variants init-variants)
@@ -2295,19 +2360,21 @@
                      #f)))
 
 (define-for-syntax import-datatypes null)
+(define-for-syntax import-opaques null)
 (define-for-syntax import-aliases null)
 (define-for-syntax import-variants null)
 (define-for-syntax import-env null)
-(define-for-syntax (add-types! dts als vars env)
+(define-for-syntax (add-types! dts opqs als vars env)
   (set! import-datatypes (append dts import-datatypes))
+  (set! import-opaques (append opqs import-opaques))
   (set! import-aliases (append als import-aliases))
   (set! import-variants (append vars import-variants))
   (set! import-env (append env import-env)))
 
 (define-syntax (typecheck-and-provide stx)
-  (let-values ([(tys e2 dts als vars macros tl-types) 
+  (let-values ([(tys e2 dts opqs als vars macros tl-types) 
                 (with-handlers ([exn:fail? (lambda (exn)
-                                             (values exn #f #f #f #f #f null))])
+                                             (values exn #f #f #f #f #f #f null))])
                   (do-original-typecheck (cdr (syntax->list stx))))])
     (if (exn? tys)
         ;; There was an exception while type checking. To order
@@ -2330,6 +2397,11 @@
                                 #`(cons (quote-syntax #,(car dt))
                                         (quote #,(cdr dt))))
                               dts))
+                ;; opaques:
+                (list #,@(map (lambda (dt)
+                                #`(cons (quote-syntax #,(car dt))
+                                        (quote-syntax #,(cdr dt))))
+                              opqs))
                 ;; aliases:
                 (list #,@(map (lambda (a)
                                 #`(list (quote-syntax #,(car a))
@@ -2356,6 +2428,9 @@
                        #,@(map (λ (dt)
                                   (car dt))
                                dts)
+                       #,@(map (λ (opq)
+                                  (car opq))
+                               opqs)
                        #,@macros
                        ;; datatype predicates for contracts:
                        #,@(map (lambda (dt)
@@ -2394,16 +2469,18 @@
                             [_
                              (local-expand #'body 'top-level null)])])
        (unless tl-env
-         (let-values ([(ts e d a vars macros tl-types) 
+         (let-values ([(ts e d o a vars macros tl-types) 
                        (do-original-typecheck (syntax->list (or orig-body #'())))])
            (set! tl-datatypes d)
+           (set! tl-opaques o)
            (set! tl-aliases a)
            (set! tl-env e)
            (set! tl-variants vars)))
-       (let-values ([(tys e2 d2 a2 vars macros tl-types) 
+       (let-values ([(tys e2 d2 o2 a2 vars macros tl-types) 
                      (typecheck-defns (expand-includes (list #'body))
-                                      tl-datatypes tl-aliases tl-env tl-variants (identifier? #'body) #f)])
+                                      tl-datatypes tl-opaques tl-aliases tl-env tl-variants (identifier? #'body) #f)])
          (set! tl-datatypes d2)
+         (set! tl-opaques o2)
          (set! tl-aliases a2)
          (set! tl-env e2)
          (with-syntax ([ty ((type->datum (make-hasheq)) (car tys))]
