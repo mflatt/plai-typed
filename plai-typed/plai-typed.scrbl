@@ -327,7 +327,7 @@ by @scheme[expr] and calls @scheme[handle-expr].}
 @defthing[filter (('a -> boolean) (listof 'a) -> (listof 'a))]
 @defthing[foldl (('a 'b -> 'b) 'b (listof 'a) -> 'b)]
 @defthing[foldr (('a 'b -> 'b) 'b (listof 'a) -> 'b)]
-@defthing[build-list ('a (number -> 'a) -> (listof 'a))]
+@defthing[build-list (number (number -> 'a) -> (listof 'a))]
 )]{List primitives.}
  
 
