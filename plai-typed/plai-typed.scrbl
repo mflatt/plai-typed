@@ -99,7 +99,7 @@ specified @racket[id]s are imported from @racket[module-path], and the
 type system assumes (without static or additional dynamic checks) the
 given @racket[type] for each @racket[id].
 
-When @racket[module-path] is wrapped with @racket[opaque-typed-in],
+When @racket[module-path] is wrapped with @racket[opaque-type-in],
 then the corresponding @racket[type-id]s are bound as opaque
 datatypes, where @racket[predicate-id] from @racket[module-path] is a
 run-time predicate (used for contracts as needed for cooperation with
@@ -528,7 +528,10 @@ and used, for example, for the result of @racket[hash-ref].}
 @defidform[opaque-type-in]
 @defidform[:]
 )]{
-Syntactic literals for use in declarations such as @racket[define] and @racket[require].}
+
+Syntactic literals for use in declarations such as @racket[define] and
+@racket[require]; see @racket[define] and @racket[require] for more
+information.}
 
 @; ----------------------------------------
 
