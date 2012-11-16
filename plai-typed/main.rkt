@@ -1195,8 +1195,10 @@
                 (syntax->list #'(clause ...)))))]
     [_ expr]))
 
-(define-for-syntax (typecheck-defns tl datatypes opaques aliases init-env init-variants just-id? orig-let-polys)
-  (let* ([datatypes (append (filter
+(define-for-syntax (typecheck-defns tl datatypes opaques aliases init-env init-variants just-id? 
+                                    poly-context orig-let-polys)
+  (let* ([poly-context (cons (gensym) poly-context)]
+         [datatypes (append (filter
                              values
                              (map
                               (lambda (stx)
@@ -1539,15 +1541,21 @@
                                   (if (identifier? id)
                                       (cons id (if val?
                                                    (create-defn
-                                                    (gen-tvar id))
-                                                   (gen-tvar id)))
+                                                    (gen-tvar id)
+                                                    poly-context)
+                                                   (as-non-poly 
+                                                    (gen-tvar id)
+                                                    poly-context)))
                                       (syntax-case id (:)
                                         [(id : type)
                                          (cons #'id 
                                                (if val?
                                                    (create-defn
-                                                    (parse-type #'type))
-                                                   (parse-mono-type #'type)))])))
+                                                    (parse-type #'type)
+                                                    poly-context)
+                                                   (as-non-poly
+                                                    (parse-mono-type #'type)
+                                                    poly-context)))])))
                                 (syntax->list #'(id ...))))]
                         [(define: (id . args) : result-type . _body)
                          (list (cons #'id
@@ -1556,41 +1564,52 @@
                                        #'id
                                        (map extract-arg-type
                                             (syntax->list #'args))
-                                       (parse-mono-type #'result-type)))))]
+                                       (parse-mono-type #'result-type))
+                                      poly-context)))]
                         [(define: (id . args) . _body)
                          (list (cons #'id (create-defn (make-arrow 
                                                         #'id
                                                         (map extract-arg-type (syntax->list #'args))
-                                                        (gen-tvar #'id)))))]
+                                                        (gen-tvar #'id))
+                                                       poly-context)))]
                         [(define: id : type (lambda: . _))
                          (list (cons #'id
-                                     (create-defn (parse-type #'type))))]
+                                     (create-defn (parse-type #'type)
+                                                  poly-context)))]
                         [(define: id (lambda: args : result-type expr))
                          (list (cons #'id
                                      (create-defn
                                       (make-arrow
                                        #'id
                                        (map extract-arg-type (syntax->list #'args))
-                                       (parse-mono-type #'result-type)))))]
+                                       (parse-mono-type #'result-type))
+                                      poly-context)))]
                         [(define: id (lambda: args expr))
                          (list (cons #'id
                                      (create-defn
                                       (make-arrow
                                        #'id
                                        (map extract-arg-type (syntax->list #'args))
-                                       (gen-tvar #'id)))))]
+                                       (gen-tvar #'id))
+                                      poly-context)))]
                         [(define: id : type expr)
                          (list (cons #'id 
                                      (if (is-value? #'expr)
                                          (create-defn
-                                          (parse-type #'type))
-                                         (parse-mono-type #'type))))]
+                                          (parse-type #'type)
+                                          poly-context)
+                                         (as-non-poly
+                                          (parse-mono-type #'type)
+                                          poly-context))))]
                         [(define: id expr)
                          (list (cons #'id 
                                      (if (is-value? #'expr)
                                          (create-defn
-                                          (gen-tvar #'id))
-                                         (gen-tvar #'id))))]
+                                          (gen-tvar #'id)
+                                          poly-context)
+                                         (as-non-poly
+                                          (gen-tvar #'id)
+                                          poly-context))))]
                         [(define-type: name
                            [variant (field-id : type) ...]
                            ...)
@@ -1743,6 +1762,7 @@
                                                  env
                                                  variants
                                                  #f
+                                                 poly-context
                                                  let-polys)])
                     (typecheck #'expr env))]
                  [(letrec: . _)
@@ -1760,6 +1780,7 @@
                                                  env
                                                  variants
                                                  #f
+                                                 poly-context
                                                  let-polys)])
                     (typecheck #'expr env))]
                  [(parameterize: ([param rhs] ...) expr)
@@ -2357,6 +2378,7 @@
                      (append import-env init-env) 
                      (append import-variants init-variants)
                      #f
+                     null
                      #f)))
 
 (define-for-syntax import-datatypes null)
@@ -2478,7 +2500,8 @@
            (set! tl-variants vars)))
        (let-values ([(tys e2 d2 o2 a2 vars macros tl-types) 
                      (typecheck-defns (expand-includes (list #'body))
-                                      tl-datatypes tl-opaques tl-aliases tl-env tl-variants (identifier? #'body) #f)])
+                                      tl-datatypes tl-opaques tl-aliases tl-env tl-variants (identifier? #'body) 
+                                      null #f)])
          (set! tl-datatypes d2)
          (set! tl-opaques o2)
          (set! tl-aliases a2)

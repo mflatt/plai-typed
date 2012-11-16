@@ -9,7 +9,7 @@
          make-arrow make-listof make-boxof make-tupleof make-vectorof 
          make-datatype make-opaque-datatype make-hashof make-parameterof
          to-contract to-expression
-         create-defn
+         create-defn as-non-poly
          make-poly poly? poly-instance at-source instantiate-constructor-at
          unify! unify-defn!
          let-based-poly!
@@ -18,7 +18,7 @@
 
 (define-struct type ([src #:mutable]))
 
-(define-struct (tvar type) ([rep #:mutable]) #:transparent)
+(define-struct (tvar type) ([rep #:mutable] [non-poly #:mutable]) #:transparent)
 (define-struct (arrow-tvar tvar) ()) ; must unify with arrow
 (define-struct (bool type) ())
 (define-struct (num type) ())
@@ -37,7 +37,7 @@
 (define-struct (datatype type) (id args))
 (define-struct (opaque-datatype datatype) (pred))
 (define-struct (poly type) (tvar type) #:transparent)
-(define-struct (defn type) (base [rhs #:mutable] [insts #:mutable] [proto-rhs #:mutable]) #:transparent)
+(define-struct (defn type) (base rhs poly-context [insts #:mutable] [proto-rhs #:mutable]) #:transparent)
 
 (define (to-contract type enforce-poly?)
   (let loop ([type type]
@@ -140,7 +140,7 @@
                                (type-src type))])))
 
 (define (gen-tvar src [arrow? #f])
-  ((if arrow? make-arrow-tvar make-tvar) src #f))
+  ((if arrow? make-arrow-tvar make-tvar) src #f #f))
 
 (define ((type->datum tmap) t)
   (cond
@@ -197,6 +197,55 @@
                                    (poly-type t)))]
    [else (format "?~s" t)]))
 
+(define (non-poly! t poly-context)
+  (let loop ([t t])
+    (cond
+     [(tvar? t) 
+      (cond
+       [(tvar-rep t) (loop (tvar-rep t))]
+       [else
+        (define pc (tvar-non-poly t))
+        (cond
+         [(not pc)
+          (set-tvar-non-poly! t poly-context)]
+         [else
+          ;; find common tail
+          (define lnew (length poly-context))
+          (define lold (length pc))
+          (let loop ([lnew lnew] [lold lold]
+                     [poly-context poly-context] [pc pc]
+                     [synth? #f])
+            (cond
+             [(= lnew lold)
+              (if (equal? poly-context pc)
+                  (set-tvar-non-poly! t (if synth?
+                                            (cons (gensym) poly-context)
+                                            poly-context))
+                  (loop (sub1 lnew) (sub1 lold)
+                        (cdr poly-context) (cdr pc)
+                        #t))]
+             [(lnew . > . lold)
+              (loop (sub1 lnew) lold (cdr poly-context) pc #f)]
+             [else
+              (loop lnew (sub1 lold) poly-context (cdr pc) #f)]))])])]
+     [(arrow? t)
+      (loop (arrow-result t))
+      (for-each loop (arrow-args t))]
+     [(listof? t) (loop (listof-element t))]
+     [(boxof? t) (loop (boxof-element t))]
+     [(vectorof? t) (loop (vectorof-element t))]
+     [(hashof? t) 
+      (loop (hashof-key t))
+      (loop (hashof-val t))]
+     [(parameterof? t) (loop (parameterof-element t))]
+     [(tupleof? t) (for-each loop (tupleof-args t))]
+     [(datatype? t) (for-each loop (datatype-args t))]
+     [(poly? t) (loop (poly-type t))])))
+
+(define (as-non-poly t poly-context)
+  (non-poly! t poly-context)
+  t)
+
 (define ((instance old-tvar new-tvar) t)
   (cond
    [(eq? t old-tvar) new-tvar]
@@ -237,37 +286,37 @@
                                      (map (instance old-tvar new-tvar)
                                           (datatype-args t))))]
    [else t]))
-(define (extract-tvars t)
+
+(define (extract-tvars t poly-context)
   (let ([tvars
-         (let box-loop ([box-ok? #f] [t t])
-           (let loop ([t t])
-             (cond
-              [(tvar? t) (list t)]
-              [(arrow? t)
-               (append ((lambda (t) (box-loop #t t)) (arrow-result t))
-                       (apply append
-                              (map (lambda (t) (box-loop #t t)) (arrow-args t))))]
-              [(listof? t) (loop (listof-element t))]
-              [(boxof? t) (if box-ok?
-                              (loop (boxof-element t))
-                              null)]
-              [(vectorof? t) (if box-ok?
-                                 (loop (vectorof-element t))
-                                 null)]
-              [(hashof? t) (if box-ok?
-                               (append (loop (hashof-key t))
-                                       (loop (hashof-val t)))
-                               null)]
-              [(parameterof? t) (if box-ok?
-                                    (loop (parameterof-element t))
-                                    null)]
-              [(tupleof? t) (apply append
-                                   (map loop (tupleof-args t)))]
-              [(datatype? t) (apply append
-                                    (map loop (datatype-args t)))]
-              [(poly? t) (remq* (list (poly-tvar t))
-                                (loop (poly-type t)))]
-              [else null])))])
+         (let loop ([t t])
+           (cond
+            [(tvar? t) (if (tvar-non-poly t)
+                           (let ([c1 (length poly-context)]
+                                 [c2 (length (tvar-non-poly t))])
+                             (if (and (c1 . < . c2)
+                                      (equal? poly-context (list-tail (tvar-non-poly t) 
+                                                                      (- c2 c1))))
+                                 (list t)
+                                 null))
+                           (list t))]
+            [(arrow? t)
+             (append (loop (arrow-result t))
+                     (apply append
+                            (map loop (arrow-args t))))]
+            [(listof? t) (loop (listof-element t))]
+            [(boxof? t) (loop (boxof-element t))]
+            [(vectorof? t) (loop (vectorof-element t))]
+            [(hashof? t) (append (loop (hashof-key t))
+                                 (loop (hashof-val t)))]
+            [(parameterof? t) (loop (parameterof-element t))]
+            [(tupleof? t) (apply append
+                                 (map loop (tupleof-args t)))]
+            [(datatype? t) (apply append
+                                  (map loop (datatype-args t)))]
+            [(poly? t) (remq* (list (poly-tvar t))
+                              (loop (poly-type t)))]
+            [else null]))])
     (if (null? tvars)
         null
         (let ([ht (make-hasheq)])
@@ -319,16 +368,17 @@
                   (cdr orig)
                   (cdr new))))])))
 
-(define (create-defn t)
-  (let ([p (poly-ize t)])
+(define (create-defn t poly-context)
+  (let ([p (poly-ize t poly-context)])
     (make-defn (type-src t)
                p
                (if (poly? p) #f p)
+               poly-context
                null
                #f)))
 
-(define (poly-ize t)
-  (let loop ([tvars (extract-tvars t)][t t])
+(define (poly-ize t poly-context)
+  (let loop ([tvars (extract-tvars t poly-context)] [t t])
     (cond
      [(null? tvars) t]
      [else (loop (cdr tvars)
@@ -558,7 +608,7 @@
            (and (defn? t)
                 (or (defn-rhs t)
                     (let* ([b (simplify!* (defn-proto-rhs t))]
-                           [poly (poly-ize b)])
+                           [poly (poly-ize b (defn-poly-context t))])
                       (for-each (lambda (x)
                                   (unify! (car x) (cdr x) (poly-instance poly)))
                                 (defn-insts t))
@@ -645,15 +695,21 @@
           (if (tvar? b)
               (if (arrow-tvar? b)
                   (begin
+                    (when (tvar-non-poly a)
+                      (non-poly! b (tvar-non-poly a)))
                     (set-tvar-rep! a b)
                     (add-srcs! b a))
                   (begin
+                    (when (tvar-non-poly b)
+                      (non-poly! a (tvar-non-poly b)))
                     (set-tvar-rep! b a)
                     (add-srcs! a b)))
               (if (and (arrow-tvar? a)
                        (not (arrow? b)))
                   (raise-typecheck-error expr a b "trace procedure")
                   (let ([b (clone b)])
+                    (when (tvar-non-poly a)
+                      (non-poly! b (tvar-non-poly a)))
                     (set-tvar-rep! a b)
                     (add-srcs! b a))))]
          [(bool? a)

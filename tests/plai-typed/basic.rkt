@@ -310,3 +310,13 @@
          (typed-in racket/flonum
                    [fl+ : (flonum flonum -> flonum)]))
 (test (exact->inexact 10.0) (fl+ (exact->inexact 6) (exact->inexact 4)))
+
+(define (poly g)
+  ;; check that a non-polymorphic binding inside
+  ;; doesn't break polymorphism of the enclosing
+  ;; function
+  (let ([x (g)])
+    x))
+
+(test 1 (poly (lambda () 1)))
+(test "x" (poly (lambda () "x")))
