@@ -807,7 +807,8 @@
                       (syntax->list #'(id ...)))
             (with-syntax ([$variant (let ([c (syntax-local-value #'variant (lambda () #f))])
                                       (if (constructor-syntax? c)
-                                          (constructor-syntax-id c)
+                                          (let ([id (constructor-syntax-id c)])
+                                            (datum->syntax id (syntax-e id) #'variant))
                                           #'variant))])
               (syntax/loc clause
                 [$variant (id ...) (#%expression ans)]))]
