@@ -50,6 +50,7 @@
                      [define-syntax: define-syntax]
                      [define-syntax-rule: define-syntax-rule])
          #%app #%datum #%top unquote unquote-splicing
+         module submod
          (rename-out [module-begin #%module-begin]
                      [top-interaction #%top-interaction])
          else typed-in rename-in opaque-type-in
@@ -270,6 +271,27 @@
       (with-handlers* ([exn:fail? (lambda (exn) expr2)])
         expr1)])))
 
+(define-for-syntax (absolute-module-path s)
+  (if (and (pair? s)
+           (or (and (eq? (car s) 'submod)
+                    (or (equal? (cadr s) ".")
+                        (equal? (cadr s) "..")))
+               (and (eq? (car s) 'quote))))
+      (module-path-index-join
+       s
+       (eval #'(variable-reference->module-path-index
+                (#%variable-reference))))
+      s))
+
+(define-for-syntax (fixup-quote stx)
+  (syntax-case stx (submod quote:)
+    [(quote: id) (datum->syntax stx `(,#'quote ,#'id) stx stx)]
+    [(submod (quote: id) . _)
+     (syntax-case stx ()
+       [(sm q . rest)
+        (datum->syntax stx `(,#'sm ,(fixup-quote #'q) . ,#'rest) stx stx)])]
+    [_ stx]))
+
 (define-syntax require:
   (check-top
    (lambda (stx)
@@ -290,7 +312,8 @@
                                        (for ([id (in-list ids)])
                                          (unless (identifier? id)
                                            (raise-syntax-error #f "expected an identifier" stx id))))
-                                     (syntax/loc clause (only-in lib id ...)))]
+                                     (with-syntax ([lib (fixup-quote #'lib)])
+                                       (syntax/loc clause (only-in lib id ...))))]
                                   [(typed-in lib spec ...)
                                    (for ([spec (in-list (syntax->list #'(spec ...)))])
                                      (syntax-case spec (:)
@@ -334,29 +357,38 @@
                                                                  ;; Also import predicate as `id':
                                                                  [predicate-id id] ...)))]
                                   [mp
-                                   (module-path? (syntax-e #'mp))
-                                   (let ([s (syntax-e #'mp)])
+                                   (module-path? (syntax->datum #'mp))
+                                   (let ([s (syntax->datum #'mp)])
+                                     (define xs (if (and (pair? s) 
+                                                         (eq? (car s) 'quote)
+                                                         (memq (cadr s) (syntax-local-submodules)))
+                                                    ;; convert to `submod' form:
+                                                    (list 'submod "." (cadr s))
+                                                    ;; ok as-is:
+                                                    s))
                                      (define typed? 
-                                       (module-declared? (if (and (pair? s) (eq? (car s 'submod)))
-                                                             `(,@s plai-typed)
-                                                             `(submod ,s plai-typed))
+                                       (module-declared? (absolute-module-path
+                                                          (if (and (pair? s) (eq? (car xs) 'submod))
+                                                              `(,@xs plai-typed)
+                                                              `(submod ,xs plai-typed)))
                                                          #t))
                                      (unless typed?
-                                       (when (module-declared? s)
+                                       (when (module-declared? (absolute-module-path xs))
                                          (raise-syntax-error #f
                                                              "not a `plai-typed' module"
                                                              stx
                                                              #'mp)))
-                                     (if typed?
-                                         (let ([new-clause
-                                                (if (and (pair? s) (eq? (car s 'submod)))
-                                                    (quasisyntax/loc clause (#,@#'mp plai-typed))
-                                                    (quasisyntax/loc clause (submod mp plai-typed)))])
-                                           (datum->syntax clause
-                                                          (syntax-e new-clause)
-                                                          clause
-                                                          clause))
-                                         clause))]
+                                     (fixup-quote
+                                      (if typed?
+                                          (let ([new-clause
+                                                 (if (and (pair? s) (eq? (car s) 'submod))
+                                                     (quasisyntax/loc clause (#,@#'mp plai-typed))
+                                                     (quasisyntax/loc clause (submod mp plai-typed)))])
+                                            (datum->syntax clause
+                                                           (syntax-e new-clause)
+                                                           clause
+                                                           clause))
+                                          clause)))]
                                   [_
                                    (raise-syntax-error #f
                                                        "not a valid require specification"
@@ -1677,8 +1709,11 @@
                                              or: and: set!: trace:
                                              type-case: quote: quasiquote: time:
                                              list vector values: try
-                                             module+:)
+                                             module+: module)
                  [(module+: . _)
+                  ;; can ignore
+                  (void)]
+                 [(module . _)
                   ;; can ignore
                   (void)]
                  [(define-syntax: . _)

@@ -29,6 +29,8 @@ the module exports all top-level definitions. When a
 not use @racketmodname[plai-typed], the imports have contracts
 (matching reflecting the exported bindings' types).
 
+@table-of-contents[]
+
 @; --------------------------------------------------
 
 @section{Definitions}
@@ -113,6 +115,19 @@ functions bound to the @racket[id]s.  This form can be used only in a
 module top level, and only for tracing functions defined within the
 module.}
 
+
+@defform[(module id module-path form ...)]{
+
+Declares a submodule named @racket[id], which can be required in the
+enclosing module using @racket['@#,racket[id]] or @racket[(submod "."
+id)]:
+
+@racketblock[
+ (module sub plai-typed
+   (define n 8))
+ (require 'sub)
+ (+ n 1)
+]}
 
 @defform[(module+ id form ...)]{
 
@@ -617,3 +632,12 @@ When typechecking fails, the error messages reports and highlights (in
 pink) all of the expressions whose type contributed to the
 failure. That's often too much information. As usual, explicit type
 annotations can help focus the error message.
+
+@; ----------------------------------------
+
+@section{Untyped with Typed Syntax}
+
+@defmodulelang[plai-typed/untyped]{
+
+The @racketmodname[plai-typed/untyped] language supports the same syntax as
+@racketmodname[plai-typed], but it performs no type checking.}
