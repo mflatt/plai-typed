@@ -597,8 +597,9 @@ a few small exceptions:
    current call) is allowed. Recursive types, however, are prohibited.}
 
  @item{Variables are mutable when @racket[set!] is used, but
-  assignment via @racket[set!] is disallowed to a variable that has a
-  polymorphic type.}
+  assignment via @racket[set!] is disallowed on a variable after a
+  polymorphic type has been inferred for it (e.g., in an interaction
+  after type checking is complete).}
 
  @item{Since all definitions are recursively bound, and since the
    right-hand side of a definition does not have to be a function, its
