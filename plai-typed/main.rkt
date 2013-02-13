@@ -361,6 +361,13 @@
                                    (let ([s (syntax->datum #'mp)])
                                      (define xs (if (and (pair? s) 
                                                          (eq? (car s) 'quote)
+                                                         ;; The following check is intended to
+                                                         ;; allow access to modules at the top
+                                                         ;; level that have only symbolic names,
+                                                         ;; but `syntax-local-submodules' is broken
+                                                         ;; in expand mode as of v5.3.3, so we skip it
+                                                         ;; for now.
+                                                         #;
                                                          (memq (cadr s) (syntax-local-submodules)))
                                                     ;; convert to `submod' form:
                                                     (list 'submod "." (cadr s))
@@ -368,7 +375,7 @@
                                                     s))
                                      (define typed? 
                                        (module-declared? (absolute-module-path
-                                                          (if (and (pair? s) (eq? (car xs) 'submod))
+                                                          (if (and (pair? xs) (eq? (car xs) 'submod))
                                                               `(,@xs plai-typed)
                                                               `(submod ,xs plai-typed)))
                                                          #t))
