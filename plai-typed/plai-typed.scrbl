@@ -636,9 +636,4 @@ annotations can help focus the error message.
 
 @; ----------------------------------------
 
-@section{Untyped with Typed Syntax}
-
-@defmodulelang[plai-typed/untyped]{
-
-The @racketmodname[plai-typed/untyped] language supports the same syntax as
-@racketmodname[plai-typed], but it performs no type checking.}
+@include-section["untyped.scrbl"]

@@ -380,7 +380,7 @@
                                                               `(submod ,xs plai-typed)))
                                                          #t))
                                      (unless typed?
-                                       (when (module-declared? (absolute-module-path xs))
+                                       (when (module-declared? (absolute-module-path xs) #t)
                                          (raise-syntax-error #f
                                                              "not a `plai-typed' module"
                                                              stx
