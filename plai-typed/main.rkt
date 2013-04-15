@@ -1322,8 +1322,8 @@
                                       (let ([a (ormap (lambda (p)
                                                         (and (free-identifier=? (car p) #'id)
                                                              p))
-                                                      (append tvars
-                                                              tenv))])
+                                                      (append tenv
+                                                              tvars))])
                                         (if a
                                             (cdr a)
                                             (let ([t (gen-tvar #'id)])
