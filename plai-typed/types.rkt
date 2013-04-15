@@ -492,6 +492,7 @@
       (raise
        (make-exn:fail:syntax
         (parameterize ([print-as-expression #f])
+          (define context (make-hasheq))
           (format "~atypecheck failed~a: ~a vs ~a~a"
                   (if (and (error-print-source-location)
                            main-expr)
@@ -503,8 +504,8 @@
                   (if reason
                       (format " (~a)" reason)
                       "")
-                  (pretty-format ((type->datum (make-hasheq)) a))
-                  (pretty-format ((type->datum (make-hasheq)) b))
+                  (pretty-format ((type->datum context) a))
+                  (pretty-format ((type->datum context) b))
                   (if (and (error-print-source-location)
                            (pair? all-exprs))
                       (apply

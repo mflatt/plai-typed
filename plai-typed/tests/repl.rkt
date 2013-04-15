@@ -35,4 +35,8 @@
 (te #rx"duplicate definition for identifier" '(define-type (M 'a)
                                                 [M (v : 'a)]))
 
+(tl "" '(define x (box empty)))
+(tl "" '(define y (box empty)))
+(te (regexp-quote "(listof (boxof (listof '_a))) vs (boxof (listof '_b))") '(cons x y))
+
 (tl "" (void))
