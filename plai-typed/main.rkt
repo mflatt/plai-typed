@@ -1412,7 +1412,7 @@
                                                                    "type alias constructor applied to the wrong number of types")
                                                                t))
                                                             (when (ormap (lambda (s)
-                                                                           (free-identifier=? s t))
+                                                                           (free-identifier=? s #'id))
                                                                          seen)
                                                               (raise-syntax-error
                                                                #f

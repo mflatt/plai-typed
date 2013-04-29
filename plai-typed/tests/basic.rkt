@@ -320,3 +320,12 @@
 
 (test 1 (poly (lambda () 1)))
 (test "x" (poly (lambda () "x")))
+
+
+;; Check expansion of a type abbreviation into
+;; a type abbreviation:
+(define-type-alias (MapFunc 'a 'b) ('a -> 'b))
+(define-type-alias (Env 'v) (MapFunc symbol 'v))
+(define (lookup [var : symbol]
+                [env : (Env 'v)])
+  (error 'NotImpl "NotImplemented"))
