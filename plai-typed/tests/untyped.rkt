@@ -332,3 +332,9 @@
 (test 1 (poly (lambda () 1)))
 (test "x" (poly (lambda () "x")))
 
+(module a-submod racket
+  (provide from-submod)
+  (define (from-submod x) (add1 x)))
+
+(require (typed-in 'a-submod [from-submod : (number -> number)]))
+(test 6 (from-submod 5))

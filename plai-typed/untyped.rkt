@@ -5,7 +5,9 @@
                     #%module-begin #%top-interaction
                     define-syntax define-syntax-rule
                     require typed-in opaque-type-in
-                    module+))
+                    module+)
+         "private/fixup-quote.rkt"
+         (only-in racket/base [quote r:quote]))
 
 (provide (all-from-out "main.rkt")
          (rename-out [module-begin #%module-begin])
@@ -35,7 +37,8 @@
             (for ([id (in-list ids)])
               (unless (identifier? id)
                 (raise-syntax-error #f "expected an identifier" stx id))))
-          (expand-import #'(only-in lib id ...)))]))))
+          (with-syntax ([lib (fixup-quote #'lib #'quote)])
+            (expand-import #'(only-in lib id ...))))]))))
 
 (define-syntax opaque-type-in
   (make-require-transformer

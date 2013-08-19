@@ -15,10 +15,11 @@
          racket/include
          (only-in racket/contract/base contract-out)
          racket/trace
+         "private/fixup-quote.ss"
          (for-syntax racket/base
                      racket/list
                      racket/syntax
-                     "types.ss"
+                     "private/types.ss"
                      racket/struct-info))
 
 (provide :
@@ -283,15 +284,6 @@
                 (#%variable-reference))))
       s))
 
-(define-for-syntax (fixup-quote stx)
-  (syntax-case stx (submod quote:)
-    [(quote: id) (datum->syntax stx `(,#'quote ,#'id) stx stx)]
-    [(submod (quote: id) . _)
-     (syntax-case stx ()
-       [(sm q . rest)
-        (datum->syntax stx `(,#'sm ,(fixup-quote #'q) . ,#'rest) stx stx)])]
-    [_ stx]))
-
 (define-syntax require:
   (check-top
    (lambda (stx)
@@ -312,7 +304,7 @@
                                        (for ([id (in-list ids)])
                                          (unless (identifier? id)
                                            (raise-syntax-error #f "expected an identifier" stx id))))
-                                     (with-syntax ([lib (fixup-quote #'lib)])
+                                     (with-syntax ([lib (fixup-quote #'lib #'quote:)])
                                        (syntax/loc clause (only-in lib id ...))))]
                                   [(typed-in lib spec ...)
                                    (for ([spec (in-list (syntax->list #'(spec ...)))])
@@ -395,7 +387,8 @@
                                                            (syntax-e new-clause)
                                                            clause
                                                            clause))
-                                          clause)))]
+                                          clause)
+                                      #'quote:))]
                                   [_
                                    (raise-syntax-error #f
                                                        "not a valid require specification"
