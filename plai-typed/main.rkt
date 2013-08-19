@@ -1525,11 +1525,13 @@
                            tl))]
          [is-value? (lambda (expr)
                       (let loop ([expr expr])
-                        (syntax-case expr (lambda: list values: cons empty quote: none some)
+                        (syntax-case expr (lambda: list values: cons empty hash: quote: none some)
                           [(lambda: . _) #t]
                           [(values: a ...)
                            (andmap loop (syntax->list #'(a ...)))]
                           [(list a ...)
+                           (andmap loop (syntax->list #'(a ...)))]
+                          [(hash: a ...)
                            (andmap loop (syntax->list #'(a ...)))]
                           [empty #t]
                           [(cons a b)
@@ -1543,7 +1545,8 @@
                           [(none) #t]
                           [(some e) (loop #'e)]
                           [(quote: a) #t]
-                          [_ (or (string? (syntax-e expr))
+                          [_ (or (identifier? expr)
+                                 (string? (syntax-e expr))
                                  (char? (syntax-e expr))
                                  (number? (syntax-e expr))
                                  (boolean? (syntax-e expr)))])))]

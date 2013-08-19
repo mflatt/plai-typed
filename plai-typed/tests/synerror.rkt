@@ -92,7 +92,7 @@
     (define c b)
     (set-box! (c) (list 1))
     (string-append (first (unbox (c))) "x"))
- #rx"string vs number")
+ #rx"string vs number|number vs string")
 
 (syn-test
  '(module m plai-typed
@@ -101,4 +101,4 @@
       (set-box! a v))
     (set (lambda (x) (+ x 1)))
     (set (lambda (x) (string-append x "1"))))
- #rx"number vs string")
+ #rx"string vs number|number vs string")

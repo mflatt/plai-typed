@@ -289,6 +289,12 @@
 (test "cat" (list->string (list #\c #\a #\t)))
 (test "cat!" (add-char "cat" #\!))
 
+(test (list "cat") (let ([g (lambda (x) (list x))])
+                     (let ([f g]) ; identifiers are values
+                       (if #f
+                           (if (zero? (first (f 10))) (list "a") (list "b"))
+                           (f "cat")))))
+
 (require (opaque-type-in racket/base
                          [bstring bytes?])
          (typed-in racket/base 

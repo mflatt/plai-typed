@@ -569,8 +569,7 @@ a few small exceptions:
    identifier on the right-hand side. Instead, every reference to an
    identifier---even a reference in the identifier's definition---is
    unified with a instantiation of a polymorphic type inferred for the
-   definition. Of course, the usual value restriction applies for
-   inferring polymorphic types.
+   definition.
 
    Compare OCaml:
 
@@ -594,7 +593,33 @@ a few small exceptions:
 
    A minor consequence is that polymorphic recursion (i.e., a self
    call with an argument whose type is different than that for the
-   current call) is allowed. Recursive types, however, are prohibited.}
+   current call) is allowed. Recursive types, however, are prohibited.
+
+   The usual value restriction applies for inferring polymorphic
+   types, where expression matching the following grammar
+   (@emph{before} macro expansion, unfortunately) are considered
+   values:
+
+   @racketgrammar[
+      #:literals (lambda list values cons empty quote)
+      value-expr (lambda (id/ty ...) expr)
+                 (lambda (id/ty ...) : type expr) 
+                 (values value-expr ...)
+                 (list value-expr ...)
+                 empty
+                 (cons value-expr value-expr)
+                 (hash value-expr ...)
+                 (variant-id value ...)
+                 (quote datum)
+                 id
+                 string
+                 character
+                 number
+                 boolean
+   ]
+
+   where @racket[_variant-id] is @racket[none], @racket[some],
+   or a constructor bound by @racket[define-type].}
 
  @item{Variables are mutable when @racket[set!] is used, but
   assignment via @racket[set!] is disallowed on a variable after a
