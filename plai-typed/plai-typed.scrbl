@@ -58,7 +58,7 @@ function.}
               ([id/type id
                         [id : type]])]{
 
-Matches multiple results produced (via @scheme[values]) by
+Matches a @tech{tuple} produced (via @scheme[values]) by
 @scheme[expr].}
 
 
@@ -300,9 +300,11 @@ Builds a vector. All @scheme[elem]s must have the same type.}
 
 @defform[(values elem ...)]{
 
-Combines multiple values into one; the type of each @scheme[elem] is
-independent. Match a @scheme[values] result using
-@scheme[define-values].}
+Combines multiple values into @deftech{tuple}, where a tuple
+containing one value is equivalent to the value. Match a @tech{tuple}
+result using @scheme[define-values].
+
+The type of each @scheme[elem] is independent.}
 
 @defform*/subs[#:literals (quote else)
                [(type-case tyid/abs val-expr
@@ -513,11 +515,11 @@ Types for functions.}
 
 @defform/none[#:literals (*) (type * ...+)]{
 
-Types for tuples.}
+Types for @tech{tuples}.}
 
 @defform/none[()]{
 
-Type for the empty tuple.}
+Type for the empty @tech{tuple}.}
 
 
 @defform[(listof type)]{Types for lists of elements.}
@@ -557,7 +559,7 @@ a few small exceptions:
 
 @itemize[
 
- @item{Functions can take multiple arguments, instead of requring a tuple
+ @item{Functions can take multiple arguments, instead of requring a @tech{tuple}
    of arguments. Thus, @scheme[(number number -> number)] is a different type
    than either @scheme[((number * number) -> number)], which is the tuple
    variant, or @scheme[(number -> (number -> number))], which is the curried
