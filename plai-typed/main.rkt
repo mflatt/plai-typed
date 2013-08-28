@@ -1713,9 +1713,10 @@
                                              type-case: quote: quasiquote: time:
                                              list vector values: try
                                              module+: module)
-                 [(module+: . _)
-                  ;; can ignore
-                  (void)]
+                 [(module+: name e ...)
+                  (map (lambda (e)
+                         (typecheck e env))
+                       (syntax->list #'(e ...)))]
                  [(module . _)
                   ;; can ignore
                   (void)]

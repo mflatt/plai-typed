@@ -102,3 +102,9 @@
     (set (lambda (x) (+ x 1)))
     (set (lambda (x) (string-append x "1"))))
  #rx"string vs number|number vs string")
+
+(syn-test
+ '(module m plai-typed
+    (define x "x")
+    (module+ test (+ 1 x)))
+ #rx"string vs number|number vs string")
