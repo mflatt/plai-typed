@@ -355,7 +355,7 @@ by @scheme[expr] and calls @scheme[handle-expr].}
 @defthing[- (number number -> number)]
 @defthing[* (number number -> number)]
 @defthing[/ (number number -> number)]
-@defthing[quotient (number number -> number)]
+@defthing[modulo (number number -> number)]
 @defthing[remainder (number number -> number)]
 @defthing[= (number number -> boolean)]
 @defthing[> (number number -> boolean)]
