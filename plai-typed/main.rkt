@@ -1714,9 +1714,17 @@
                                              list vector values: try
                                              module+: module)
                  [(module+: name e ...)
-                  (map (lambda (e)
-                         (typecheck e env))
-                       (syntax->list #'(e ...)))]
+                  (let-values ([(ty env datatypes opaques aliases vars macros tl-tys)
+                                (typecheck-defns (syntax->list #'(e ...))
+                                                 datatypes
+                                                 opaques
+                                                 aliases
+                                                 env
+                                                 variants
+                                                 #f
+                                                 poly-context
+                                                 let-polys)])
+                    (void))]
                  [(module . _)
                   ;; can ignore
                   (void)]

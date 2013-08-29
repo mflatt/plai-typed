@@ -234,7 +234,10 @@
 (define boxed-null (box (list)))
 
 (module+ test
-  (test "apple" (llnode-s (llnode "apple" (none)))))
+  (define (kons v) v)
+  (define apple-string "apple")
+  (test apple-string (llnode-s (llnode (kons apple-string)
+                                       (kons (none))))))
 
 (include "for-basic.rktl")
 (test "hello6" (string-append included-string
