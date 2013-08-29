@@ -1229,7 +1229,7 @@
     [_ expr]))
 
 (define-for-syntax (typecheck-defns tl datatypes opaques aliases init-env init-variants just-id? 
-                                    poly-context orig-let-polys)
+                                    poly-context orig-let-polys submods)
   (let* ([poly-context (cons (gensym) poly-context)]
          [datatypes (append (filter
                              values
@@ -1714,17 +1714,32 @@
                                              list vector values: try
                                              module+: module)
                  [(module+: name e ...)
-                  (let-values ([(ty env datatypes opaques aliases vars macros tl-tys)
-                                (typecheck-defns (syntax->list #'(e ...))
-                                                 datatypes
-                                                 opaques
-                                                 aliases
-                                                 env
-                                                 variants
-                                                 #f
-                                                 poly-context
-                                                 let-polys)])
-                    (void))]
+                  (let*-values ([(datatypes opaques aliases variants env prev-submods)
+                                 (vector->values (hash-ref submods (syntax-e #'name)
+                                                           (vector datatypes
+                                                                   opaques
+                                                                   aliases
+                                                                   variants
+                                                                   env
+                                                                   (hasheq))))]
+                                [(ty env datatypes opaques aliases variants macros tys next-submods)
+                                 (typecheck-defns (syntax->list #'(e ...))
+                                                  datatypes
+                                                  opaques
+                                                  aliases
+                                                  env
+                                                  variants
+                                                  #f
+                                                  poly-context
+                                                  let-polys
+                                                  prev-submods)])
+                    (set! submods (hash-set submods (syntax-e #'name)
+                                            (vector datatypes
+                                                    opaques
+                                                    aliases
+                                                    variants
+                                                    env
+                                                    next-submods))))]
                  [(module . _)
                   ;; can ignore
                   (void)]
@@ -1802,7 +1817,7 @@
                          (syntax->list #'(e ...)))
                     (typecheck #'last-e env))]
                  [(local: [defn ...] expr)
-                  (let-values ([(ty env datatypes opaques aliases vars macros tl-tys)
+                  (let-values ([(ty env datatypes opaques aliases vars macros tl-tys subs)
                                 (typecheck-defns (syntax->list #'(defn ...))
                                                  datatypes
                                                  opaques
@@ -1811,7 +1826,8 @@
                                                  variants
                                                  #f
                                                  poly-context
-                                                 let-polys)])
+                                                 let-polys
+                                                 submods)])
                     (typecheck #'expr env))]
                  [(letrec: . _)
                   (typecheck ((make-let 'letrec) expr) env)]
@@ -1820,7 +1836,7 @@
                  [(let*: . _)
                   (typecheck ((make-let 'let*) expr) env)]
                  [(shared: ([id rhs] ...) expr)
-                  (let-values ([(ty env datatypes opaques aliases vars macros tl-tys)
+                  (let-values ([(ty env datatypes opaques aliases vars macros tl-tys subs)
                                 (typecheck-defns (syntax->list #'((define: id rhs) ...))
                                                  datatypes
                                                  opaques
@@ -1829,7 +1845,7 @@
                                                  variants
                                                  #f
                                                  poly-context
-                                                 let-polys)])
+                                                 let-polys submods)])
                     (typecheck #'expr env))]
                  [(parameterize: ([param rhs] ...) expr)
                   (begin
@@ -2062,13 +2078,15 @@
      aliases
      variants
      macros
-     poly-def-env)))
+     poly-def-env
+     submods)))
 
 (define-for-syntax tl-env #f)
 (define-for-syntax tl-datatypes #f)
 (define-for-syntax tl-opaques #f)
 (define-for-syntax tl-aliases #f)
 (define-for-syntax tl-variants #f)
+(define-for-syntax tl-submods #f)
 
 (define-for-syntax (do-original-typecheck tl)
   (let ([datatypes null]
@@ -2427,7 +2445,8 @@
                      (append import-variants init-variants)
                      #f
                      null
-                     #f)))
+                     #f
+                     (hasheq))))
 
 (define-for-syntax import-datatypes null)
 (define-for-syntax import-opaques null)
@@ -2442,9 +2461,9 @@
   (set! import-env (append env import-env)))
 
 (define-syntax (typecheck-and-provide stx)
-  (let-values ([(tys e2 dts opqs als vars macros tl-types) 
+  (let-values ([(tys e2 dts opqs als vars macros tl-types subs) 
                 (with-handlers ([exn:fail? (lambda (exn)
-                                             (values exn #f #f #f #f #f #f null))])
+                                             (values exn #f #f #f #f #f #f null (hasheq)))])
                   (do-original-typecheck (cdr (syntax->list stx))))])
     (if (exn? tys)
         ;; There was an exception while type checking. To order
@@ -2539,21 +2558,23 @@
                             [_
                              (local-expand #'body 'top-level null)])])
        (unless tl-env
-         (let-values ([(ts e d o a vars macros tl-types) 
+         (let-values ([(ts e d o a vars macros tl-types subs) 
                        (do-original-typecheck (syntax->list (or orig-body #'())))])
            (set! tl-datatypes d)
            (set! tl-opaques o)
            (set! tl-aliases a)
            (set! tl-env e)
-           (set! tl-variants vars)))
-       (let-values ([(tys e2 d2 o2 a2 vars macros tl-types) 
+           (set! tl-variants vars)
+           (set! tl-submods subs)))
+       (let-values ([(tys e2 d2 o2 a2 vars macros tl-types subs) 
                      (typecheck-defns (expand-includes (list #'body))
                                       tl-datatypes tl-opaques tl-aliases tl-env tl-variants (identifier? #'body) 
-                                      null #f)])
+                                      null #f tl-submods)])
          (set! tl-datatypes d2)
          (set! tl-opaques o2)
          (set! tl-aliases a2)
          (set! tl-env e2)
+         (set! tl-submods subs)
          (with-syntax ([ty ((type->datum (make-hasheq)) (car tys))]
                        [body expanded-body])
            (if (void? (car tys))

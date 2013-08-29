@@ -236,8 +236,16 @@
 (module+ test
   (define (kons v) v)
   (define apple-string "apple")
+  (define-type fish [trout (n : number)] [bass])
   (test apple-string (llnode-s (llnode (kons apple-string)
                                        (kons (none))))))
+
+(module+ test
+  (test "apple" apple-string)
+  (define (fry f)
+    (type-case fish f
+      [trout (n) (+ n 1)]
+      [bass () 0])))
 
 (include "for-basic.rktl")
 (test "hello6" (string-append included-string
