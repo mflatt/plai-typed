@@ -2478,6 +2478,17 @@
                          #`[#,(car tl-thing)
                             #,(to-contract (cdr tl-thing) #f)])
                       tl-types)))
+            ;; Providing each binding renamed to a generated symbol doesn't
+            ;; make the binding directly inaccessible, but it makes the binding
+            ;; marked as "exported" for the purposes of inspector-guarded
+            ;; access. (In other words, we're not trying to be as secure
+            ;; as Typed Racket, snce we can rely on Racket's safety.)
+            (provide
+             (rename-out
+              #,@(map (λ (tl-thing)
+                         #`[#,(car tl-thing)
+                            #,(gensym)])
+                      tl-types)))
             (module* plai-typed #f
               (begin-for-syntax
                (add-types!
