@@ -66,11 +66,19 @@
             x)))
 
 (test 5 (call/cc (lambda (x) 5)))
+(test 5 (let/cc x 5))
 (test 7 (local [(define y (lambda (q) (+ q 3)))]
           (if (= 0 (call/cc (lambda (k)
                               (begin
                                 (set! y k)
                                 0))))
+              (y 2)
+              7)))
+(test 7 (local [(define y (lambda (q) (+ q 3)))]
+          (if (= 0 (let/cc k
+                     (begin
+                       (set! y k)
+                       0)))
               (y 2)
               7)))
 

@@ -76,7 +76,7 @@
          add1 sub1 zero? odd? even?
          modulo remainder floor ceiling
          symbol=? string=? equal? eq? not
-         error try call/cc
+         error try call/cc let/cc
 
          string->symbol symbol->string
          string-append to-string
@@ -1136,6 +1136,15 @@
                                                   id))))))
                     ids)
           #'(trace id ...))]))))
+
+(define-syntax: let/cc
+  (lambda (stx)
+    (syntax-case stx ()
+      [(_ id expr)
+       (begin
+         (unless (identifier? #'id)
+           (raise-syntax-error #f "expected an identifier" stx #'id))
+         (syntax/loc stx (call/cc (lambda: (id) expr))))])))
 
 ;; ----------------------------------------
 

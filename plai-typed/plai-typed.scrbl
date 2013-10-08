@@ -473,8 +473,12 @@ functions work on both mutable and immutable hash tables.}
 )]{
 Option constructors, selector, and predicates. See @racket[optionof].}
 
-@defthing[call/cc ((('a -> 'b) -> 'a) -> 'a)]{
-Continuation primitive.}
+@deftogether[(
+@defthing[call/cc ((('a -> 'b) -> 'a) -> 'a)]
+@defform[(let/cc id expr)]
+)]{
+Continuation primitive, where @racket[(let/cc id expr)] is equivalent
+to @racket[(call/cc (lambda (id) expr))].}
 
 @deftogether[(
 @defform[(test expr expr)]
