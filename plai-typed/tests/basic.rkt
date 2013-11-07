@@ -354,3 +354,6 @@
 (define (lookup [var : symbol]
                 [env : (Env 'v)])
   (error 'NotImpl "NotImplemented"))
+
+(test 5 (fst (pair 5 true)))
+(test true (snd (pair 5 true)))

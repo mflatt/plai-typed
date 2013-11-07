@@ -443,6 +443,14 @@ S-expressions.}
 )]{Vector primitives.}
 
 @deftogether[(
+@defthing[pair ('a 'b -> ('a * 'b))]
+@defthing[fst (('a * 'b) -> 'a)]
+@defthing[snd (('a * 'b) -> 'b)]
+)]{
+
+Constructor and selectors for tuples containing two values.}
+
+@deftogether[(
 @defthing[make-parameter ('a -> (parameterof 'a))]
 @defthing[parameter-ref ((parameterof 'a) -> 'a)]
 @defthing[parameter-set! ((parameterof 'a) 'a -> void)]

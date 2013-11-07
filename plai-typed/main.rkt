@@ -101,6 +101,7 @@
          make-vector vector-ref vector-set! vector-length vector
          
          (rename-out [values: values])
+         pair fst snd
 
          identity
 
@@ -559,6 +560,10 @@
               (define (id arg ...) (#%expression expr)))))]))))
 
 (define values: vector-immutable)
+
+(define (pair a b) (vector-immutable a b))
+(define (fst v) (vector-ref v 0))
+(define (snd v) (vector-ref v 1))
 
 (define-syntax define-values:
   (check-top
@@ -2441,6 +2446,21 @@
                                                         (list
                                                          (make-datatype #f #'optionof (list a)))
                                                         a)))
+                     (cons #'pair (POLY a 
+                                        (POLY b
+                                              (make-arrow #f
+                                                          (list a b)
+                                                          (make-tupleof #f (list a b))))))
+                     (cons #'fst (POLY a 
+                                       (POLY b
+                                             (make-arrow #f
+                                                         (list (make-tupleof #f (list a b)))
+                                                         a))))
+                     (cons #'snd (POLY a 
+                                       (POLY b
+                                             (make-arrow #f
+                                                         (list (make-tupleof #f (list a b)))
+                                                         b))))
                      ))]
         [init-variants (list
                         (cons #'none (list))
