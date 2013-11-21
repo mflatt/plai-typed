@@ -975,7 +975,7 @@
      (syntax-case stx ()
        [(_ expr [alts ans] ...)
         (with-syntax ([(catch ...)
-                       (let loop ([altss (syntax->list #'(alts ...))])
+                       (let loop ([altss (syntax->list #'(alts ...))] [kind #f])
                          (if (null? altss)
                              #'([else (case-error)])
                              (syntax-case (car altss) (else)
@@ -987,17 +987,30 @@
                                                         stx
                                                         (car altss)))]
                                [(id ...)
-                                (begin
-                                  (for-each (lambda (id)
-                                              (unless (identifier? id)
-                                                (raise-syntax-error #f
-                                                                    "alternative must be a symbol"
-                                                                    stx
-                                                                    id)))
-                                            (syntax->list #'(id ...)))
-                                  (loop (cdr altss)))]
+                                (let id-loop ([ids (syntax->list #'(id ...))]
+                                              [kind kind])
+                                  (if (null? ids)
+                                      (loop (cdr altss) kind)
+                                      (let ([id (car ids)])
+                                        (unless (or (identifier? id)
+                                                    (number? (syntax-e id)))
+                                          (raise-syntax-error #f
+                                                              "alternative must be a symbol or a number"
+                                                              stx
+                                                              id))
+                                        (let ([new-kind (if (identifier? id)
+                                                            'symbol
+                                                            'number)])
+                                          (when (and kind (not (eq? new-kind kind)))
+                                            (raise-syntax-error #f
+                                                                (format "~a disallowed after preceding ~a"
+                                                                        new-kind
+                                                                        kind)
+                                                                stx
+                                                                id))
+                                          (id-loop (cdr ids) new-kind)))))]
                                [_ (raise-syntax-error #f
-                                                      "expected (<id> ...)"
+                                                      "expected (<id/num> ...)"
                                                       stx
                                                       (car altss))])))])
           (syntax/loc stx
@@ -1008,7 +1021,7 @@
                       [[alts ans] 'ok]
                       [_else (raise-syntax-error
                               #f
-                              "expected [(<id> ...) <result-expr>] or [else <result-expr>]"
+                              "expected [(<id/num> ...) <result-expr>] or [else <result-expr>]"
                               stx
                               thing)]))
                   (syntax->list #'(thing ...)))]))))
@@ -1887,8 +1900,16 @@
                     res-type)]
                  [(case: expr [alts ans] ...)
                   (let ([res-type (gen-tvar #'expr)])
-                    (unify! #'expr 
-                            (make-sym #'expr) 
+                    (unify! #'expr
+                            (let loop ([alts (syntax->list #'(alts ...))])
+                              (if (null? alts)
+                                  (make-sym #'expr)
+                                  (syntax-case (car alts) ()
+                                    [() (loop (cdr alts))]
+                                    [(v . _)
+                                     (number? (syntax-e #'v))
+                                     (make-num #'expr)]
+                                    [_ (make-sym #'expr)])))
                             (typecheck #'expr env))
                     (for-each
                      (lambda (ans)

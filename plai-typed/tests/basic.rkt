@@ -149,6 +149,14 @@
           [(apple banana) 2]
           [else 5]))
 
+(test 5 (case 'apple
+          [else 5]))
+
+(test 2 (case 3
+          [(0) 1]
+          [(2 3) 2]
+          [else 5]))
+
 (test 7 (cond
          [(= 0 1) 6]
          [else 7]))

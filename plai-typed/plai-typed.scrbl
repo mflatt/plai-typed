@@ -248,10 +248,15 @@ declares he result type of the function.}
 Conditionals. Each @scheme[test-expr] must have type @scheme[boolean].}
 
 @defform*[#:literals (else)
-          [(case expr [(id ...) expr] ...)
-           (case expr [(id ...) expr] ... [else expr])]]{
+          [(case expr [(id-or-number ...) expr] ...)
+           (case expr [(id-or-number ...) expr] ... [else expr])]]{
 
-Case dispatch on symbols.}
+Case dispatch on symbols or numbers.
+
+The dispatching mode, symbol or number, is inferred from the
+@racket[id-or-number]s, which must all be symbols or numbers for a
+given use of @racket[case]. If no clause provides a number or symbol,
+then symbol dispatch is inferred.}
 
 @defform[(begin expr ...+)]{Sequence.}
 

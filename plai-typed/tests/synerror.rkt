@@ -108,3 +108,30 @@
     (define x "x")
     (module+ test (+ 1 x)))
  #rx"string vs number|number vs string")
+
+(syn-test
+ '(module m plai-typed
+    (case 1
+      [(1) 5]
+      [(a) 6]))
+ #rx"number")
+
+(syn-test
+ '(module m plai-typed
+    (case 1
+      [(a) 5]
+      [(1) 6]))
+ #rx"number")
+
+(syn-test
+ '(module m plai-typed
+    (case 1
+      [(a) 5]
+      [(b) 6]))
+ #rx"number vs symbol|symbol vs number")
+
+(syn-test
+ '(module m plai-typed
+    (case 1
+      [else 6]))
+ #rx"number vs symbol|symbol vs number")
