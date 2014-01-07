@@ -195,6 +195,12 @@ an S-expression (type
 An expression also can be a bound identifier (in
 which case its type comes from its binding).
 
+@defform[#:literals (:)
+         (has-type expr : type)]{
+
+Equivalent to @racket[expr], but declares/asserts that @racket[expr]
+has type @racket[type].}
+
 @defthing[true boolean]
 @defthing[false boolean]
 

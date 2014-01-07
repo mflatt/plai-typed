@@ -135,3 +135,8 @@
     (case 1
       [else 6]))
  #rx"number vs symbol|symbol vs number")
+
+(syn-test
+ '(module m plai-typed
+    (has-type 1 : symbol))
+ #rx"number vs symbol|symbol vs number")

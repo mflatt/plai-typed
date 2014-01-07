@@ -365,3 +365,8 @@
 
 (test 5 (fst (pair 5 true)))
 (test true (snd (pair 5 true)))
+
+(define (add-two l)
+  (+ (first (has-type l : (listof number)))
+     (has-type (second l) : number)))
+(test 3 (add-two (list 1 2)))

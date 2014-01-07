@@ -55,6 +55,7 @@
          (rename-out [module-begin #%module-begin]
                      [top-interaction #%top-interaction])
          else typed-in rename-in opaque-type-in
+         has-type
 
          (for-syntax (all-from-out racket/base))
 
@@ -1126,6 +1127,11 @@
                                 stx
                                 #'id))]))))
 
+(define-syntax has-type
+  (check-top
+   (syntax-rules (:)
+     [(_ expr : type) expr])))
+
 (define-syntax time:
   (check-top
    (syntax-rules ()
@@ -1738,6 +1744,7 @@
                                              begin: cond: case: if: when: unless:
                                              or: and: set!: trace:
                                              type-case: quote: quasiquote: time:
+                                             has-type
                                              list vector values: try
                                              module+: module)
                  [(module+: name e ...)
@@ -2022,6 +2029,11 @@
                   (make-sexp expr)]
                  [(time: expr)
                   (typecheck #'expr env)]
+                 [(has-type expr : type)
+                  (let ([t (typecheck #'expr env)]
+                        [ty (parse-mono-type #'type)])
+                    (unify! #'expr t ty)
+                    ty)]
                  [(try expr1 (lambda: () expr2))
                   (let ([t (typecheck #'expr1 env)])
                     (unify! #'expr2 t (typecheck #'expr2 env))
