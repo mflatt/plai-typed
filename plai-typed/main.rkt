@@ -94,6 +94,7 @@
          s-exp-symbol? s-exp->symbol symbol->s-exp
          s-exp-number? s-exp->number number->s-exp
          s-exp-string? s-exp->string string->s-exp
+         s-exp-boolean? s-exp->boolean boolean->s-exp
          s-exp-list? s-exp->list list->s-exp
          (rename-out [read: read])
          
@@ -158,6 +159,9 @@
 (define (s-exp-string? s) (string? s))
 (define (s-exp->string s) (if (string? s) s (error 's-exp->string "not a string: ~e" s)))
 (define (string->s-exp s) s)
+(define (s-exp-boolean? s) (boolean? s))
+(define (s-exp->boolean s) (if (boolean? s) s (error 's-exp->boolean "not a boolean: ~e" s)))
+(define (boolean->s-exp s) s)
 (define (s-exp-list? s) (list? s))
 (define (s-exp->list s) (if (list? s) s (error 's-exp->list "not a list: ~e" s)))
 (define (list->s-exp s) s)
@@ -170,6 +174,7 @@
             (or (symbol? v)
                 (string? v) 
                 (number? v)
+                (boolean? v)
                 (and (list? v)
                      (map loop v))))
     (error 'read "input is not an s-expression: ~e" v))
@@ -1064,7 +1069,8 @@
       (or (and (let ([v (syntax-e s)])
                  (or (symbol? v)
                      (number? v)
-                     (string? v)))
+                     (string? v)
+                     (boolean? v)))
                s)
           (let ([l (syntax->list s)])
             (and l
@@ -2157,7 +2163,8 @@
                         [B (make-bool #f)]
                         [STR (make-str #f)]
                         [CHAR (make-chr #f)]
-                        [SYM (make-sym #f)])
+                        [SYM (make-sym #f)]
+                        [BOOL (make-bool #f)])
                     (define-syntax-rule (POLY a e)
                       (let ([a (gen-tvar #f)]) (make-poly #f a e)))
                     (list
@@ -2271,6 +2278,15 @@
                      (cons #'string->s-exp (make-arrow #f 
                                                        (list STR)
                                                        (make-sexp #f)))
+                     (cons #'s-exp-boolean? (make-arrow #f 
+                                                       (list (make-sexp #f))
+                                                       B))
+                     (cons #'s-exp->boolean (make-arrow #f 
+                                                        (list (make-sexp #f))
+                                                        BOOL))
+                     (cons #'boolean->s-exp (make-arrow #f 
+                                                        (list BOOL)
+                                                        (make-sexp #f)))
                      (cons #'s-exp-list? (make-arrow #f 
                                                      (list (make-sexp #f))
                                                      B))

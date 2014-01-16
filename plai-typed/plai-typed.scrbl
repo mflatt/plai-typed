@@ -208,6 +208,7 @@ has type @racket[type].}
               ([s-exp id
                       number
                       string
+                      boolean
                       (s-exp ...)])]{
 A symbol (when the @racket[s-exp] is an identifier) or a literal S-expression.}
 
@@ -217,6 +218,7 @@ A symbol (when the @racket[s-exp] is an identifier) or a literal S-expression.}
               ([qq-form id
                         number
                         string
+                        boolean
                         (qq-form ...)
                         (#,(racket unquote) expr)
                         (#,(racket unquote-splicing) expr)
@@ -412,6 +414,9 @@ Symbol primitive.}
 @defthing[s-exp-string? (s-expression -> boolean)]
 @defthing[s-exp->string (s-expression -> string)]
 @defthing[string->s-exp (string -> s-expression)]
+@defthing[s-exp-boolean? (s-expression -> boolean)]
+@defthing[s-exp->boolean (s-expression -> boolean)]
+@defthing[boolean->s-exp (boolean -> s-expression)]
 @defthing[s-exp-list? (s-expression -> boolean)]
 @defthing[s-exp->list (s-expression -> (listof s-expression))]
 @defthing[list->s-exp ((listof s-expression) -> s-expression)]
@@ -424,8 +429,8 @@ function to produce the symbol, otherwise an exception is raised. The
 @racket[symbol->s-exp] function similarly acts as the identity
 function to view a symbol as an S-expression.
 
-The other functions work similarly for numbers, strings, and lists of
-S-expressions.}
+The other functions work similarly for numbers, strings, booleans, and
+lists of S-expressions.}
 
 @defthing[identity ('a -> 'a)]{Identity primitive.}
 

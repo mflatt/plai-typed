@@ -7,7 +7,7 @@
                     [vector-immutable : ('a 'a 'a -> (vectorof 'a))])
           [+ plus]))
 
-(define x : s-expression '(a 2 "c" '(d)))
+(define x : s-expression '(a 2 "c" '(d) #f))
 (define (f [y : number]) y)
 
 (print-only-errors #t)
@@ -50,13 +50,17 @@
 (test #f (s-exp-string? x))
 (test #f (s-exp-symbol? x))
 (test #f (s-exp-number? x))
+(test #f (s-exp-boolean? x))
 (test (symbol->s-exp 'a) (first (s-exp->list x)))
 (test #t (s-exp-symbol? (first (s-exp->list x))))
 (test #t (s-exp-number? (first (rest (s-exp->list x)))))
 (test #t (s-exp-string? (first (rest (rest (s-exp->list x))))))
 (test #t (s-exp-list? (first (rest (rest (rest (s-exp->list x)))))))
+(test #t (s-exp-boolean? (first (rest (rest (rest (rest (s-exp->list x))))))))
 (test #t (s-exp-string? (string->s-exp "a")))
 (test #t (s-exp-number? (number->s-exp 2)))
+(test #t (s-exp-boolean? (boolean->s-exp #f)))
+(test #f (s-exp->boolean '#f))
 (test #t (s-exp-list? (list->s-exp (list))))
 (test #t (s-exp-list? (list->s-exp (list (number->s-exp 2)))))
 
