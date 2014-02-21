@@ -396,6 +396,8 @@ Symbol primitive.}
 @defthing[string->symbol (string -> symbol)]
 @defthing[symbol->string (symbol -> string)]
 @defthing[string-ref (string number -> char)]
+@defthing[string-length (string -> number)]
+@defthing[substring (string number number -> string)]
 )]{String primitives.}
 
 @deftogether[(
