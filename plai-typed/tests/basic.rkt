@@ -316,6 +316,8 @@
 
 (define (add-char s c) (string-append s (list->string (list c))))
 (test #\a (string-ref "cat" 1))
+(test "at" (substring "catch" 1 3))
+(test 3 (string-length "cat"))
 (test (list #\c #\a #\t) (string->list "cat"))
 (test "cat" (list->string (list #\c #\a #\t)))
 (test "cat!" (add-char "cat" #\!))

@@ -83,7 +83,7 @@
          string-append to-string
          display
 
-         char=? string-ref string->list list->string
+         char=? string-ref substring string-length string->list list->string
 
          (rename-out [make-hash: make-hash]
                      [hash: hash]
@@ -2471,6 +2471,12 @@
                      (cons #'string-ref (make-arrow #f
                                                     (list STR N)
                                                     CHAR))
+                     (cons #'string-length (make-arrow #f
+                                                       (list STR)
+                                                       N))
+                     (cons #'substring (make-arrow #f
+                                                   (list STR N N)
+                                                   STR))
                      (cons #'string->list (make-arrow #f
                                                       (list STR)
                                                       (make-listof #f CHAR)))
