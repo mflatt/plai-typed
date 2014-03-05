@@ -376,3 +376,7 @@
   (+ (first (has-type l : (listof number)))
      (has-type (second l) : number)))
 (test 3 (add-two (list 1 2)))
+
+(define (build-hash classhash)
+ (hash-set classhash '(something) 'another))
+(test (some 'another) (hash-ref (build-hash (hash (list))) '(something)))

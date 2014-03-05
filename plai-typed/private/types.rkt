@@ -3,7 +3,8 @@
          racket/pretty
          syntax/srcloc
          (for-template racket/contract/base
-                       racket/base))
+                       racket/base
+                       "s-exp.rkt"))
 
 (provide gen-tvar make-bool make-num make-sym make-str make-chr make-vd make-sexp
          make-arrow make-listof make-boxof make-tupleof make-vectorof 
@@ -52,8 +53,7 @@
      [(bool? type) #'boolean?]
      [(num? type) #'number?]
      [(sym? type) #'symbol?]
-     [(sexp? type) #'(letrec ([s-exp? (recursive-contract (or/c symbol? number? string? boolean? (listof s-exp?)))])
-                       s-exp?)]
+     [(sexp? type) #'s-exp?]
      [(vd? type) #'void?]
      [(str? type) #'string?]
      [(chr? type) #'char?]
