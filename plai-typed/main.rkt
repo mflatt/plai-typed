@@ -578,12 +578,12 @@
        [(_ (id ...) expr)
         (with-syntax ([(id ...)
                        (map (lambda (id)
-                              (check-defn-keyword id stx)
                               (if (identifier? id)
-                                  id
+                                  (begin (check-defn-keyword id stx)
+                                         id)
                                   (syntax-case id (:)
                                     [(id : type)
-                                     #'id]
+                                     (begin (check-defn-keyword #'id stx) #'id)]
                                     [else
                                      (raise-syntax-error
                                       #f
@@ -1813,18 +1813,26 @@
                   (typecheck #'(define: id : (gensym id) expr)
                              env)]
                  [(define-values: (id ...) rhs)
-                  (let ([tvars (map (lambda (id)
-                                      (gen-tvar id))
-                                    (syntax->list #'(id ...)))])
-                    (unify! expr 
-                            (make-tupleof expr tvars)
+                  (let ([id-ids (map (lambda (id)
+                                       (if (identifier? id)
+                                           id
+                                           (car (syntax-e id))))
+                                     (syntax->list #'(id ...)))]
+                        [id-types (map (lambda (id)
+                                         (syntax-case id (:)
+                                           [(id : type)
+                                            (poly-instance (parse-type #'type))]
+                                           [else (gen-tvar id)]))
+                                       (syntax->list #'(id ...)))])
+                    (unify! expr
+                            (make-tupleof expr id-types)
                             (typecheck #'rhs env))
                     (for-each (lambda (id tvar)
                                 (unify-defn! expr
                                              (lookup id env)
                                              tvar))
-                              (syntax->list #'(id ...))
-                              tvars))]
+                              id-ids
+                              id-types))]
                  [(lambda: (arg ...) : type body)
                   (let ([arg-ids (map (lambda (arg)
                                         (if (identifier? arg)

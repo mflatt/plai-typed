@@ -380,3 +380,11 @@
 (define (build-hash classhash)
  (hash-set classhash '(something) 'another))
 (test (some 'another) (hash-ref (build-hash (hash (list))) '(something)))
+
+;; does define-values work correctly?
+(define-values (aoeua aoeub) (values 3 "banana"))
+(test 3 aoeua)
+(test "banana" aoeub)
+(define-values ([aoeuc : number] [aoeud : string]) (values 4 "plum"))
+(test 4 aoeuc)
+(test "plum" aoeud)
