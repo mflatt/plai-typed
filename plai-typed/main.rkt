@@ -375,8 +375,8 @@
                                      (define typed? 
                                        (module-declared? (absolute-module-path
                                                           (if (and (pair? xs) (eq? (car xs) 'submod))
-                                                              `(,@xs plai-typed)
-                                                              `(submod ,xs plai-typed)))
+                                                              `(,@xs plai-typed types-and-without-contracts)
+                                                              `(submod ,xs plai-typed types-and-without-contracts)))
                                                          #t))
                                      (unless typed?
                                        (when (module-declared? (absolute-module-path xs) #t)
@@ -388,8 +388,8 @@
                                       (if typed?
                                           (let ([new-clause
                                                  (if (and (pair? s) (eq? (car s) 'submod))
-                                                     (quasisyntax/loc clause (#,@#'mp plai-typed))
-                                                     (quasisyntax/loc clause (submod mp plai-typed)))])
+                                                     (quasisyntax/loc clause (#,@#'mp plai-typed types-and-without-contracts))
+                                                     (quasisyntax/loc clause (submod mp plai-typed types-and-without-contracts)))])
                                             (datum->syntax clause
                                                            (syntax-e new-clause)
                                                            clause
@@ -424,7 +424,7 @@
 (define-syntax-rule (module+: name e ...)
   (module+ name
     ;; to register implicitly imported types:
-    (require (only-in (submod ".." plai-typed)))
+    (require (only-in (submod ".." types-and-without-contracts)))
     e
     ...))
 
@@ -2564,24 +2564,25 @@
         #`(#%expression (let-syntax ([x (raise #,tys)])
                           x))
         #`(begin
-            (provide
-             (contract-out
-              #,@(map (λ (tl-thing)
-                         #`[#,(car tl-thing)
-                            #,(to-contract (cdr tl-thing) #f)])
-                      tl-types)))
+            (module* with-contracts #f
+              (provide
+               (contract-out
+                #,@(map (λ (tl-thing)
+                          #`[#,(car tl-thing)
+                             #,(to-contract (cdr tl-thing) #f)])
+                        tl-types))))
             ;; Providing each binding renamed to a generated symbol doesn't
             ;; make the binding directly inaccessible, but it makes the binding
             ;; marked as "exported" for the purposes of inspector-guarded
             ;; access. (In other words, we're not trying to be as secure
-            ;; as Typed Racket, snce we can rely on Racket's safety.)
+            ;; as Typed Racket, since we can rely on Racket's safety.)
             (provide
              (rename-out
               #,@(map (λ (tl-thing)
                          #`[#,(car tl-thing)
                             #,(gensym)])
                       tl-types)))
-            (module* plai-typed #f
+            (module* types-and-without-contracts #f
               (begin-for-syntax
                (add-types!
                 ;; datatypes:
@@ -2639,8 +2640,6 @@
     [(_ . body)
      #'(begin
          (begin-for-syntax (set-orig-body! (quote-syntax body)))
-         ;; Typechecking happens at the `provide' expansion phase,
-         ;; which is after everything else is expanded:
          (typecheck-and-provide . body))]))
 
 ;; ----------------------------------------
@@ -2727,15 +2726,43 @@
     (datum->syntax
      stx
      (list (quote-syntax #%module-begin)
-           (cons (quote-syntax begin)
-                 (cdr (syntax-e stx)))
-           (cons (quote-syntax typecheck)
-                 (cdr (syntax-e stx))))
+           ;; Push full module content into a `plai-typed` submodule.
+           ;; It exports bindings without contracts, while a `with-contracts`
+           ;; sub-submodule exports bindings with contracts:
+           (list (quote-syntax module) 'plai-typed '(submod plai-typed/main inner-lang)
+                 (cons (quote-syntax #%module-begin)
+                       (cdr (syntax-e stx))))
+           ;; Make this module export the bindings with contracts:
+           (quote-syntax (begin
+                           (require (submod "." plai-typed with-contracts))
+                           (provide (all-from-out (submod "." plai-typed with-contracts))))))
      stx
      stx)))
+
+;; inner-module begin is used for the submodule that contains the original
+;; module body:
+(module* inner-module-begin #f
+  (provide inner-module-begin)
+  (define-syntaxes (inner-module-begin)
+    (lambda (stx)
+      (datum->syntax
+       stx
+       (list (quote-syntax #%module-begin)
+             (cons (quote-syntax begin) (cdr (syntax-e stx)))
+             (cons (quote-syntax typecheck)
+                   (cdr (syntax-e stx))))
+       stx
+       stx))))
+
+;; Set up a language with `inner-module-begin` as `#%module-begin`:
+(module* inner-lang racket/base
+  (require (submod "..")
+           (submod ".." inner-module-begin))
+  (provide (except-out (all-from-out (submod ".."))
+                       #%module-begin)
+           (rename-out [inner-module-begin #%module-begin])))
 
 ;; ----------------------------------------
 
 (module reader syntax/module-reader
   plai-typed)
-
