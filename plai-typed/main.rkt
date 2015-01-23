@@ -20,7 +20,8 @@
                      racket/list
                      racket/syntax
                      "private/types.ss"
-                     racket/struct-info))
+                     racket/struct-info
+                     syntax/modcollapse))
 
 (provide :
          (rename-out [define: define]
@@ -2564,12 +2565,27 @@
         #`(#%expression (let-syntax ([x (raise #,tys)])
                           x))
         #`(begin
-            (provide
-             (contract-out
-              #,@(map (λ (tl-thing)
-                         #`[#,(car tl-thing)
-                            #,(to-contract (cdr tl-thing) #f)])
-                      tl-types)))
+            ;; Put all contracts implementations in a submodule,
+            ;; so they're not loaded in a typed context:
+            (module* with-contracts #f
+              (provide
+               (contract-out
+                #,@(map (λ (tl-thing)
+                          #`[#,(car tl-thing)
+                             #,(to-contract (cdr tl-thing) #f)])
+                        tl-types))))
+            ;; Export identifiers for untyped use as redirections to the
+            ;; submodule:
+            (begin-for-syntax
+              (define make-redirect-to-contract
+                (make-make-redirect-to-contract (#%variable-reference))))
+            #,@(map (lambda (tl-thing)
+                      (define name (gensym))
+                      #`(begin
+                          (define-syntaxes (#,name)
+                            (make-redirect-to-contract (quote-syntax #,(car tl-thing))))
+                          (provide (rename-out [#,name #,(car tl-thing)]))))
+                    tl-types)
             ;; Providing each binding renamed to a generated symbol doesn't
             ;; make the binding directly inaccessible, but it makes the binding
             ;; marked as "exported" for the purposes of inspector-guarded
@@ -2629,6 +2645,29 @@
                                  (datum->syntax (car dt)
                                                 (string->symbol (format "~a?" (syntax-e (car dt))))))
                                dts)))))))
+
+(define-for-syntax (((make-make-redirect-to-contract varref) id) stx)
+  (define (redirect stx)
+    (cond
+     [(identifier? stx)
+      (with-syntax ([here (collapse-module-path-index
+                           (variable-reference->module-path-index
+                            varref)
+                           (lambda ()
+                             (build-path (current-load-relative-directory)
+                                         "dummy.rkt")))]
+                    [id (datum->syntax id (syntax-e id) stx stx)])
+        #`(let ()
+            (local-require (only-in (submod here with-contracts)
+                                    [#,(syntax-e #'id) id]))
+            id))]
+     [else
+      (datum->syntax stx
+                     (cons (redirect (car (syntax-e stx)))
+                           (cdr (syntax-e stx)))
+                     stx
+                     stx)]))
+  (redirect stx))
 
 (define-for-syntax orig-body #f)
 (define-for-syntax (set-orig-body! v)
