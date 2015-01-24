@@ -2568,6 +2568,7 @@
             ;; Put all contracts implementations in a submodule,
             ;; so they're not loaded in a typed context:
             (module* with-contracts #f
+              (begin) ; work around a bug in v6.1.1 and earlier
               (provide
                (contract-out
                 #,@(map (λ (tl-thing)
