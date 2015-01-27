@@ -21,7 +21,7 @@
                      racket/syntax
                      "private/types.ss"
                      racket/struct-info
-                     syntax/modcollapse))
+                     "private/collapse.ss"))
 
 (provide :
          (rename-out [define: define]
@@ -2651,16 +2651,14 @@
   (define (redirect stx)
     (cond
      [(identifier? stx)
-      (with-syntax ([here (collapse-module-path-index
-                           (variable-reference->module-path-index
-                            varref)
-                           (lambda ()
-                             (build-path (current-load-relative-directory)
-                                         "dummy.rkt")))]
+      (with-syntax ([mp (collapse-module-path-index/relative
+                         (module-path-index-join
+                          '(submod "." with-contracts)
+                          (variable-reference->module-path-index
+                           varref)))]
                     [id (datum->syntax id (syntax-e id) stx stx)])
         #`(let ()
-            (local-require (only-in (submod here with-contracts)
-                                    [#,(syntax-e #'id) id]))
+            (local-require (only-in mp [#,(syntax-e #'id) id]))
             id))]
      [else
       (datum->syntax stx
