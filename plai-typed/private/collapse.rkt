@@ -63,7 +63,7 @@
                 ;; Unix-style relative path string
                 (cond
                  [(string? prev)
-                  (define l (drop-right (explode-relpath-string s) 1))
+                  (define l (drop-right (explode-relpath-string prev) 1))
                   (if (null? l)
                       s
                       (string-join (append
@@ -71,7 +71,7 @@
                                       (case e
                                         [(same) "."]
                                         [(up) ".."]
-                                        [else e]))
+                                        [else (path-element->string e)]))
                                     (list s))
                                    "/"))]
                  [(path? prev)
