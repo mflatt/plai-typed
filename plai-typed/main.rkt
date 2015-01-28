@@ -2658,7 +2658,7 @@
                            varref)))]
                     [id (datum->syntax id (syntax-e id) stx stx)])
         #`(let ()
-            (local-require (only-in mp [#,(syntax-e #'id) id]))
+            (local-require (only-in mp [#,(datum->syntax #'mp (syntax-e #'id)) id]))
             id))]
      [else
       (datum->syntax stx
