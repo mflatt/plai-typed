@@ -2577,16 +2577,22 @@
                         tl-types))))
             ;; Export identifiers for untyped use as redirections to the
             ;; submodule:
-            (begin-for-syntax
-              (define make-redirect-to-contract
-                (make-make-redirect-to-contract (#%variable-reference))))
-            #,@(map (lambda (tl-thing)
-                      (define name (gensym))
-                      #`(begin
-                          (define-syntaxes (#,name)
-                            (make-redirect-to-contract (quote-syntax #,(car tl-thing))))
-                          (provide (rename-out [#,name #,(car tl-thing)]))))
-                    tl-types)
+            (module with-contracts-reference racket/base
+              (require racket/runtime-path
+                       (for-syntax racket/base))
+              (define-runtime-module-path-index contracts-submod
+                '(submod ".." with-contracts))
+              (provide contracts-submod))
+            (require (for-syntax (submod "." with-contracts-reference)))
+            #,(let ([names (map (lambda (_) (gensym)) tl-types)]
+                    [tl-names (map car tl-types)])
+                #`(begin
+                    (define-syntaxes #,names
+                      ((make-make-redirects-to-contracts contracts-submod)
+                       (syntax->list (quote-syntax #,tl-names))))
+                    (provide #,@(for/list ([name (in-list names)]
+                                           [tl-name (in-list tl-names)])
+                                  #`(rename-out [#,name #,tl-name])))))
             ;; Providing each binding renamed to a generated symbol doesn't
             ;; make the binding directly inaccessible, but it makes the binding
             ;; marked as "exported" for the purposes of inspector-guarded
@@ -2647,26 +2653,26 @@
                                                 (string->symbol (format "~a?" (syntax-e (car dt))))))
                                dts)))))))
 
-(define-for-syntax (((make-make-redirect-to-contract varref) id) stx)
-  (define (redirect stx)
-    (cond
-     [(identifier? stx)
-      (with-syntax ([mp (collapse-module-path-index/relative
-                         (module-path-index-join
-                          '(submod "." with-contracts)
-                          (variable-reference->module-path-index
-                           varref)))]
-                    [id (datum->syntax id (syntax-e id) stx stx)])
-        #`(let ()
-            (local-require (only-in mp [#,(datum->syntax #'mp (syntax-e #'id)) id]))
-            id))]
-     [else
-      (datum->syntax stx
-                     (cons (redirect (car (syntax-e stx)))
-                           (cdr (syntax-e stx)))
-                     stx
-                     stx)]))
-  (redirect stx))
+(define-for-syntax ((make-make-redirects-to-contracts submod-modidx) ids)
+  (define redirects
+    (for/list ([id (in-list ids)])
+      (define (redirect stx)
+        (cond
+         [(identifier? stx)
+          (with-syntax ([mp (collapse-module-path-index/relative
+                             submod-modidx)]
+                        [id (datum->syntax id (syntax-e id) stx stx)])
+            #`(let ()
+                (local-require (only-in mp [#,(datum->syntax #'mp (syntax-e #'id)) id]))
+                id))]
+         [else
+          (datum->syntax stx
+                         (cons (redirect (car (syntax-e stx)))
+                               (cdr (syntax-e stx)))
+                         stx
+                         stx)]))
+      redirect))
+  (apply values redirects))
 
 (define-for-syntax orig-body #f)
 (define-for-syntax (set-orig-body! v)
