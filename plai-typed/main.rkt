@@ -1755,15 +1755,25 @@
                                              list vector values: try
                                              module+: module)
                  [(module+: name e ...)
-                  (let*-values ([(datatypes opaques aliases variants env prev-submods)
+                  (let*-values ([(datatypes dt-len opaques o-len aliases a-len
+                                            variants v-len env e-len
+                                            prev-macros prev-tys prev-tl-tys prev-submods)
                                  (vector->values (hash-ref submods (syntax-e #'name)
                                                            (vector datatypes
+                                                                   (length datatypes)
                                                                    opaques
+                                                                   (length opaques)
                                                                    aliases
+                                                                   (length aliases)
                                                                    variants
+                                                                   (length variants)
                                                                    env
+                                                                   (length env)
+                                                                   null ; macros
+                                                                   null ; tys
+                                                                   null ; tl-tys
                                                                    (hasheq))))]
-                                [(ty env datatypes opaques aliases variants macros tys next-submods)
+                                [(tys env datatypes opaques aliases variants macros tl-tys next-submods)
                                  (typecheck-defns (syntax->list #'(e ...))
                                                   datatypes
                                                   opaques
@@ -1775,11 +1785,14 @@
                                                   let-polys
                                                   prev-submods)])
                     (set! submods (hash-set submods (syntax-e #'name)
-                                            (vector datatypes
-                                                    opaques
-                                                    aliases
-                                                    variants
-                                                    env
+                                            (vector datatypes dt-len
+                                                    opaques o-len
+                                                    aliases a-len
+                                                    variants v-len
+                                                    env e-len
+                                                    (append macros prev-macros)
+                                                    (append tys prev-tys)
+                                                    (append tl-tys prev-tl-tys)
                                                     next-submods))))]
                  [(module . _)
                   ;; can ignore
@@ -2554,7 +2567,7 @@
   (set! import-env (append env import-env)))
 
 (define-syntax (typecheck-and-provide stx)
-  (let-values ([(tys e2 dts opqs als vars macros tl-types subs) 
+  (let-values ([(tys e2 dts opqs als vars macros tl-types subs)
                 (with-handlers ([exn:fail? (lambda (exn)
                                              (values exn #f #f #f #f #f #f null (hasheq)))])
                   (do-original-typecheck (cdr (syntax->list stx))))])
@@ -2564,94 +2577,114 @@
         ;; a sub-expression:
         #`(#%expression (let-syntax ([x (raise #,tys)])
                           x))
-        #`(begin
-            ;; Put all contracts implementations in a submodule,
-            ;; so they're not loaded in a typed context:
-            (module* with-contracts #f
-              (begin) ; work around a bug in v6.1.1 and earlier
-              (provide
-               (contract-out
-                #,@(map (λ (tl-thing)
-                          #`[#,(car tl-thing)
-                             #,(to-contract (cdr tl-thing) #f)])
-                        tl-types))))
-            ;; Export identifiers for untyped use as redirections to the
-            ;; submodule:
-            (module with-contracts-reference racket/base
-              (require racket/runtime-path
-                       (for-syntax racket/base))
-              (define-runtime-module-path-index contracts-submod
-                '(submod ".." with-contracts))
-              (provide contracts-submod))
-            (require (for-syntax (submod "." with-contracts-reference)))
-            #,(let ([names (map (lambda (_) (gensym)) tl-types)]
-                    [tl-names (map car tl-types)])
-                #`(begin
-                    (define-syntaxes #,names
-                      ((make-make-redirects-to-contracts contracts-submod)
-                       (syntax->list (quote-syntax #,tl-names))))
-                    (provide #,@(for/list ([name (in-list names)]
-                                           [tl-name (in-list tl-names)])
-                                  #`(rename-out [#,name #,tl-name])))))
-            ;; Providing each binding renamed to a generated symbol doesn't
-            ;; make the binding directly inaccessible, but it makes the binding
-            ;; marked as "exported" for the purposes of inspector-guarded
-            ;; access. (In other words, we're not trying to be as secure
-            ;; as Typed Racket, snce we can rely on Racket's safety.)
-            (provide
-             (rename-out
-              #,@(map (λ (tl-thing)
-                         #`[#,(car tl-thing)
-                            #,(gensym)])
-                      tl-types)))
-            (module* plai-typed #f
-              (begin-for-syntax
-               (add-types!
-                ;; datatypes:
-                (list #,@(map (lambda (dt)
-                                #`(cons (quote-syntax #,(car dt))
-                                        (quote #,(cdr dt))))
-                              dts))
-                ;; opaques:
-                (list #,@(map (lambda (dt)
-                                #`(cons (quote-syntax #,(car dt))
-                                        (quote-syntax #,(cdr dt))))
-                              opqs))
-                ;; aliases:
-                (list #,@(map (lambda (a)
-                                #`(list (quote-syntax #,(car a))
-                                        (list #,@(map (lambda (a)
-                                                        #`(quote-syntax #,a))
-                                                      (cadr a)))
-                                        (quote-syntax #,(caddr a))))
-                              als))
-                ;; variants:
-                (list #,@(map (lambda (var)
-                                #`(list (quote-syntax #,(car var))
-                                        #,@(map (lambda (t)
-                                                  (to-expression t #hasheq()))
-                                                (cdr var))))
-                              vars))
-                ;; types
-                (list #,@(map (λ (tl-thing)
-                                 #`(cons (quote-syntax #,(car tl-thing))
-                                         #,(to-expression (cdr tl-thing) #hasheq())))
-                              tl-types))))
-              (provide #,@(map (λ (tl-thing)
-                                  (car tl-thing))
-                               tl-types)
-                       #,@(map (λ (dt)
-                                  (car dt))
-                               dts)
-                       #,@(map (λ (opq)
-                                  (car opq))
-                               opqs)
-                       #,@macros
-                       ;; datatype predicates for contracts:
-                       #,@(map (lambda (dt)
-                                 (datum->syntax (car dt)
-                                                (string->symbol (format "~a?" (syntax-e (car dt))))))
-                               dts)))))))
+        (generate-provides tys e2 dts opqs als vars macros tl-types subs))))
+
+(define-for-syntax (generate-provides tys e2 dts opqs als vars macros tl-types subs)
+  #`(begin
+      ;; Put all contracts implementations in a submodule,
+      ;; so they're not loaded in a typed context:
+      (module* with-contracts #f
+        (begin) ; work around a bug in v6.1.1 and earlier
+        (provide
+         (contract-out
+          #,@(map (λ (tl-thing)
+                    #`[#,(car tl-thing)
+                       #,(to-contract (cdr tl-thing) #f)])
+                  tl-types))))
+      ;; Export identifiers for untyped use as redirections to the
+      ;; submodule:
+      (module with-contracts-reference racket/base
+        (require racket/runtime-path
+                 (for-syntax racket/base))
+        (define-runtime-module-path-index contracts-submod
+          '(submod ".." with-contracts))
+        (provide contracts-submod))
+      (require (for-syntax (submod "." with-contracts-reference)))
+      #,(let ([names (map (lambda (_) (gensym)) tl-types)]
+              [tl-names (map car tl-types)])
+          #`(begin
+              (define-syntaxes #,names
+                ((make-make-redirects-to-contracts contracts-submod)
+                 (syntax->list (quote-syntax #,tl-names))))
+              (provide #,@(for/list ([name (in-list names)]
+                                     [tl-name (in-list tl-names)])
+                            #`(rename-out [#,name #,tl-name])))))
+      ;; Providing each binding renamed to a generated symbol doesn't
+      ;; make the binding directly inaccessible, but it makes the binding
+      ;; marked as "exported" for the purposes of inspector-guarded
+      ;; access. (In other words, we're not trying to be as secure
+      ;; as Typed Racket, snce we can rely on Racket's safety.)
+      (provide
+       (rename-out
+        #,@(map (λ (tl-thing)
+                  #`[#,(car tl-thing)
+                     #,(gensym)])
+                tl-types)))
+      (module* plai-typed #f
+        (begin-for-syntax
+          (add-types!
+           ;; datatypes:
+           (list #,@(map (lambda (dt)
+                           #`(cons (quote-syntax #,(car dt))
+                                   (quote #,(cdr dt))))
+                         dts))
+           ;; opaques:
+           (list #,@(map (lambda (dt)
+                           #`(cons (quote-syntax #,(car dt))
+                                   (quote-syntax #,(cdr dt))))
+                         opqs))
+           ;; aliases:
+           (list #,@(map (lambda (a)
+                           #`(list (quote-syntax #,(car a))
+                                   (list #,@(map (lambda (a)
+                                                   #`(quote-syntax #,a))
+                                                 (cadr a)))
+                                   (quote-syntax #,(caddr a))))
+                         als))
+           ;; variants:
+           (list #,@(map (lambda (var)
+                           #`(list (quote-syntax #,(car var))
+                                   #,@(map (lambda (t)
+                                             (to-expression t #hasheq()))
+                                           (cdr var))))
+                         vars))
+           ;; types
+           (list #,@(map (λ (tl-thing)
+                           #`(cons (quote-syntax #,(car tl-thing))
+                                   #,(to-expression (cdr tl-thing) #hasheq())))
+                         tl-types))))
+        (provide #,@(map (λ (tl-thing)
+                           (car tl-thing))
+                         tl-types)
+                 #,@(map (λ (dt)
+                           (car dt))
+                         dts)
+                 #,@(map (λ (opq)
+                           (car opq))
+                         opqs)
+                 #,@macros
+                 ;; datatype predicates for contracts:
+                 #,@(map (lambda (dt)
+                           (datum->syntax (car dt)
+                                          (string->symbol (format "~a?" (syntax-e (car dt))))))
+                         dts)))
+      ;; Add provides to submodules, too:
+      #,@(for/list ([(name vec) (in-hash subs)])
+           (let-values ([(datatypes dt-len opaques o-len aliases a-len
+                                    variants v-len env e-len
+                                    macros tys tl-types submods)
+                         (vector->values vec)])
+             (define (drop l n) (reverse (list-tail (reverse l) n)))
+             #`(module+ #,name
+                 #,(generate-provides tys
+                                      (drop env e-len)
+                                      (drop datatypes dt-len)
+                                      (drop opaques o-len)
+                                      (drop aliases a-len)
+                                      (drop variants v-len)
+                                      macros
+                                      (let-based-poly! tl-types)
+                                      submods))))))
 
 (define-for-syntax ((make-make-redirects-to-contracts submod-modidx) ids)
   (define redirects
