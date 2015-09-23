@@ -776,7 +776,7 @@
                       [(define-values: . _) 'ok]
                       [else (raise-syntax-error
                              #f
-                             "expected a function, constant, or tuple defininition"
+                             "expected a function, constant, or tuple definition"
                              thing)]))
                   (syntax->list #'(thing ...)))]))))
 
