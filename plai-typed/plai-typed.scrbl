@@ -350,6 +350,7 @@ by @scheme[expr] and calls @scheme[handle-expr].}
 @defthing[fourth ((listof 'a) -> 'a)]
 @defthing[list-ref ((listof 'a) number -> 'a)]
 @defthing[length ((listof 'a) -> number)]
+@defthing[append ((listof 'a) (listof 'a) -> (listof 'a))]
 @defthing[reverse ((listof 'a) -> (listof 'a))]
 @defthing[member ('a (listof 'a) -> boolean)]
 @defthing[map (('a -> 'b) (listof 'a) -> (listof 'b))]
