@@ -2739,7 +2739,9 @@
                              (local-expand #'body 'top-level null)])])
        (unless tl-env
          (let-values ([(ts e d o a vars macros tl-types subs) 
-                       (do-original-typecheck (syntax->list (or orig-body #'())))])
+                       (do-original-typecheck (syntax->list (if orig-body
+                                                                (syntax-local-introduce orig-body)
+                                                                #'())))])
            (set! tl-datatypes d)
            (set! tl-opaques o)
            (set! tl-aliases a)
