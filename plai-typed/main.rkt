@@ -1924,10 +1924,10 @@
                        (unless (syntax-case ques (else)
                                  [else #t]
                                  [_ #f])
-                         (unify! #'ques
+                         (unify! ques
                                  (make-bool ques)
                                  (typecheck ques env)))
-                       (unify! #'ans
+                       (unify! ans
                                res-type
                                (typecheck ans env)))
                      (syntax->list #'(ques ...))
