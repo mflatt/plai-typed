@@ -866,51 +866,60 @@
 (define-for-syntax (signal-typecase-syntax-error stx)
   (syntax-case stx ()
     [(_ type expr clause ...)
-     (for-each (lambda (clause)
-                 (syntax-case clause (else)
-                   [[variant (id ...) ans]
-                    (identifier? #'variant)
-                    'ok]
-                   [[(variant args ...) (id ...) ans]
-                    (identifier? #'variant)
-                    'ok]
-                   [[else ans] 'ok]
-                   [[var . rest]
-                    (not (identifier? #'var))
-                    (raise-syntax-error
-                     #f
-                     "expected an identifier from a define-type"
-                     stx
-                     #'var)]
-                   [[var ids . rest]
-                    (syntax-case #'ids ()
-                      [(x ...) (andmap identifier? (syntax->list #'(x ...))) #f]
-                      [else #t])
-                    (raise-syntax-error
-                     #f
-                     (format "second piece of the ~a clause must be a sequence of identifiers"
-                             (syntax-e #'var))
-                     stx
-                     clause)]
-                   [[var ids ans1 ans2 . ans]
-                    (raise-syntax-error
-                     #f
-                     "clause does not contain a single result expression"
-                     stx
-                     clause)]
-                   [[variant (id ...) ans ...]
-                    (andmap identifier? (syntax->list #'(id ...)))
-                    (raise-syntax-error
-                     #f
-                     "clause does not contain a single result expression"
-                     stx
-                     clause)]
-                   [else (raise-syntax-error
-                          #f
-                          "ill-formed clause"
-                          stx
-                          clause)]))
-               (syntax->list #'(clause ...)))]
+     (let* ([clauses (syntax->list #'(clause ...))]
+            [len (length clauses)])
+       (for ([clause (in-list clauses)]
+             [pos (in-naturals)])
+         (syntax-case clause (else)
+           [[variant (id ...) ans]
+            (identifier? #'variant)
+            'ok]
+           [[(variant args ...) (id ...) ans]
+            (identifier? #'variant)
+            'ok]
+           [[else ans]
+            (if (= pos (sub1 len))
+                'ok
+                (raise-syntax-error
+                 #f
+                 "misplaced `else' clause"
+                 stx
+                 clause))]
+           [[var . rest]
+            (not (identifier? #'var))
+            (raise-syntax-error
+             #f
+             "expected an identifier from a define-type"
+             stx
+             #'var)]
+           [[var ids . rest]
+            (syntax-case #'ids ()
+              [(x ...) (andmap identifier? (syntax->list #'(x ...))) #f]
+              [else #t])
+            (raise-syntax-error
+             #f
+             (format "second piece of the ~a clause must be a sequence of identifiers"
+                     (syntax-e #'var))
+             stx
+             clause)]
+           [[var ids ans1 ans2 . ans]
+            (raise-syntax-error
+             #f
+             "clause does not contain a single result expression"
+             stx
+             clause)]
+           [[variant (id ...) ans ...]
+            (andmap identifier? (syntax->list #'(id ...)))
+            (raise-syntax-error
+             #f
+             "clause does not contain a single result expression"
+             stx
+             clause)]
+           [else (raise-syntax-error
+                  #f
+                  "ill-formed clause"
+                  stx
+                  clause)])))]
     [else
      (raise-syntax-error #f "ill-formed type-case" stx)]))
 

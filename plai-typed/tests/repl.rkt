@@ -39,8 +39,11 @@
 (tl "" '(define y (box empty)))
 (te (regexp-quote "(listof (boxof (listof '_a))) vs (boxof (listof '_b))") '(cons x y))
 
-;; SHould have no source inside plai-typed implementation:
+;; Should have no source inside plai-typed implementation:
 (te "^typecheck failed" '(cond [#t 4] [#f "string"]))
 (te "^typecheck failed" '(cond [#t 4] ["string" 5]))
+
+(te "misplaced `else' clause"
+    '(type-case (optionof string) (some "x") [some (x) x] [else "else"] [none () "none"]))
 
 (tl "" (void))
