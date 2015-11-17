@@ -221,21 +221,23 @@
   (p v))
 
 (define-for-syntax (is-type-keyword? a)
-  (ormap (lambda (i)
-           (free-identifier=? a i))
-         (syntax->list
-          #'(: number boolean symbol char s-expression
-               string: -> * listof: hashof:
-               boxof: vectorof: parameterof:
-               void: optionof))))
+  (and (identifier? a)
+       (ormap (lambda (i)
+                (free-identifier=? a i))
+              (syntax->list
+               #'(: number boolean symbol char s-expression
+                    string: -> * listof: hashof:
+                    boxof: vectorof: parameterof:
+                    void: optionof)))))
 
 (define-for-syntax (is-keyword? a)
   (or (is-type-keyword? a)
-      (ormap (lambda (i)
-               (free-identifier=? a i))
-             (syntax->list
-              #'(true false
-                      else)))))
+      (and (identifier? a)
+           (ormap (lambda (i)
+                    (free-identifier=? a i))
+                  (syntax->list
+                   #'(true false
+                           else))))))
 
 (define-for-syntax (check-defn-keyword id stx)
   (when (is-keyword? id)

@@ -46,4 +46,8 @@
 (te "misplaced `else' clause"
     '(type-case (optionof string) (some "x") [some (x) x] [else "else"] [none () "none"]))
 
+(te "must be an identifier"
+    '(type-case (optionof string) "frn" [some (,w) 3]))
+
+
 (tl "" (void))
