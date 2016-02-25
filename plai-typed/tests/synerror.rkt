@@ -41,7 +41,7 @@
       (begin
         (f 10 #f)
         (string-append "x" (f "hi" #t)))))
- #rx"typecheck failed: number vs string")
+ #rx"typecheck failed: number vs. string")
           
 ;; Check that polymorphism inference in nested scopes
 ;; doesn't go wrong:
@@ -57,7 +57,7 @@
       (if (string=? "in?" "in?") 
           in?
           (lambda (n) (void)))))
- #rx"typecheck failed: void vs boolean")
+ #rx"typecheck failed: void vs. boolean")
 
 (syn-test
  '(module m plai-typed
@@ -77,12 +77,12 @@
 (syn-test
  '(module m plai-typed
     (quasiquote (unquote 5)))
- #rx"number vs s-expression")
+ #rx"number vs. s-expression")
 
 (syn-test
  '(module m plai-typed
     (quasiquote (1 (unquote-splicing 5) 3)))
- #rx"number vs .listof s-expression.")
+ #rx"number vs. .listof s-expression.")
 
 
 (syn-test
@@ -92,7 +92,7 @@
     (define c b)
     (set-box! (c) (list 1))
     (string-append (first (unbox (c))) "x"))
- #rx"string vs number|number vs string")
+ #rx"string vs. number|number vs. string")
 
 (syn-test
  '(module m plai-typed
@@ -101,13 +101,13 @@
       (set-box! a v))
     (set (lambda (x) (+ x 1)))
     (set (lambda (x) (string-append x "1"))))
- #rx"string vs number|number vs string")
+ #rx"string vs. number|number vs. string")
 
 (syn-test
  '(module m plai-typed
     (define x "x")
     (module+ test (+ 1 x)))
- #rx"string vs number|number vs string")
+ #rx"string vs. number|number vs. string")
 
 (syn-test
  '(module m plai-typed
@@ -128,18 +128,18 @@
     (case 1
       [(a) 5]
       [(b) 6]))
- #rx"number vs symbol|symbol vs number")
+ #rx"number vs. symbol|symbol vs. number")
 
 (syn-test
  '(module m plai-typed
     (case 1
       [else 6]))
- #rx"number vs symbol|symbol vs number")
+ #rx"number vs. symbol|symbol vs. number")
 
 (syn-test
  '(module m plai-typed
     (has-type 1 : symbol))
- #rx"number vs symbol|symbol vs number")
+ #rx"number vs. symbol|symbol vs. number")
 
 (syn-test
  '(module m plai-typed
@@ -155,3 +155,31 @@
  '(module m plai-typed
     (define-values (z [-> : number]) 3))
  #rx"cannot redefine a keyword")
+
+(syn-test
+ '(module m plai-typed
+    (2))
+ #rx"call of a non-function")
+
+(syn-test
+ '(module m plai-typed
+    (empty))
+ #rx"call of a non-function")
+
+(syn-test
+ '(module m plai-typed
+    (define (f x) x)
+   (f))
+ #rx"wrong number of arguments")
+
+(syn-test
+ '(module m plai-typed
+   (define (f x) (x 1))
+   (f 10))
+ #rx"typecheck failed: [^\n]*vs.")
+
+(syn-test
+ '(module m plai-typed
+   (define (f x) (x 1))
+   (f (lambda () 10)))
+ #rx"typecheck failed: [^\n]*vs.")

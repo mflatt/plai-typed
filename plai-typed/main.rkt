@@ -15,13 +15,13 @@
          racket/include
          (only-in racket/contract/base contract-out)
          racket/trace
-         "private/fixup-quote.ss"
+         "private/fixup-quote.rkt"
          (for-syntax racket/base
                      racket/list
                      racket/syntax
-                     "private/types.ss"
+                     "private/types.rkt"
                      racket/struct-info
-                     "private/collapse.ss"))
+                     "private/collapse.rkt"))
 
 (provide :
          (rename-out [define: define]
@@ -2119,7 +2119,8 @@
                                         (map (lambda (arg)
                                                (typecheck arg env))
                                              (syntax->list #'(arg ...)))
-                                        res-type))
+                                        res-type)
+                            #:function-call? #t)
                     res-type)]
                  [_else
                   (cond

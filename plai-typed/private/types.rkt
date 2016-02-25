@@ -477,47 +477,67 @@
                      (extract-srcs! i ht))
                    r)]))
 
-(define raise-typecheck-error
-  (case-lambda
-   [(main-expr a b reason)
-    (let ([exprs (let ([ht (make-hash)])
-                   (extract-srcs! ht main-expr)
-                   (extract-srcs! a ht)
-                   (extract-srcs! b ht)
-                   (hash-map ht (lambda (k v) v)))])
-      (define all-exprs 
-        (if main-expr
-            (cons main-expr (remq main-expr exprs))
-            exprs))
-      (raise
-       (make-exn:fail:syntax
-        (parameterize ([print-as-expression #f])
-          (define context (make-hasheq))
-          (format "~atypecheck failed~a: ~a vs ~a~a"
-                  (if (and (error-print-source-location)
-                           main-expr)
-                      (let ([s (source-location->string (syntax-srcloc main-expr))])
-                        (if (equal? s "")
-                            ""
-                            (string-append s ": ")))
-                      "")
-                  (if reason
-                      (format " (~a)" reason)
-                      "")
-                  (pretty-format ((type->datum context) a))
-                  (pretty-format ((type->datum context) b))
-                  (if (and (error-print-source-location)
-                           (pair? all-exprs))
-                      (apply
-                       string-append
-                       "\n  sources:"
-                       (for/list ([e (in-list all-exprs)])
-                         (format "\n   ~s" (syntax->datum e))))
-                      "")))
-        (current-continuation-marks)
-        all-exprs)))]
-   [(expr a b)
-    (raise-typecheck-error expr a b #f)]))
+(define (raise-typecheck-error main-expr a b
+                               [reason #f]
+                               #:function-call? [function-call? #f])
+  (let ([exprs (let ([ht (make-hash)])
+                 (extract-srcs! ht main-expr)
+                 (extract-srcs! a ht)
+                 (extract-srcs! b ht)
+                 (hash-map ht (lambda (k v) v)))])
+    (define all-exprs 
+      (if main-expr
+          (cons main-expr (remq main-expr exprs))
+          exprs))
+    (raise
+     (make-exn:fail:syntax
+      (parameterize ([print-as-expression #f])
+        (define context (make-hasheq))
+        (format "~atypecheck failed~a: ~a vs. ~a~a"
+                (if (and (error-print-source-location)
+                         main-expr)
+                    (let ([s (source-location->string (syntax-srcloc main-expr))])
+                      (if (equal? s "")
+                          ""
+                          (string-append s ": ")))
+                    "")
+                (cond
+                 [(or reason (mismatch-explanation a b function-call?))
+                  => (lambda (s) (format ": ~a\n  type mismatch" s))]
+                 [else ""])
+                (pretty-format ((type->datum context) a))
+                (pretty-format ((type->datum context) b))
+                (if (and (error-print-source-location)
+                         (pair? all-exprs))
+                    (apply
+                     string-append
+                     "\n  sources:"
+                     (for/list ([e (in-list all-exprs)])
+                       (format "\n   ~s" (syntax->datum e))))
+                    "")))
+      (current-continuation-marks)
+      all-exprs))))
+
+(define (mismatch-explanation a b function-call?)
+  (cond
+   [(or (and (arrow? a) (not (arrow? b)))
+        (and (arrow? b) (not (arrow? a))))
+    (if function-call?
+        (string-append "call of a non-function\n"
+                       "  possible reason: extra parentheses create a function call")
+        (string-append "function vs. non-function\n"
+                       "  possible reason: extra parentheses create a function call\n"
+                       "  another possible reason: missing parentheses for a function call"))]
+   [(and function-call?
+         (arrow? a)
+         (arrow? b)
+         (not (= (length (arrow-args a))
+                 (length (arrow-args b)))))
+    (format (string-append "function call with wrong number of arguments\n"
+                           "  argument counts: ~a vs. ~a")
+            (length (arrow-args a))
+            (length (arrow-args b)))]
+   [else #f]))
 
 (define (lookup id env)
   (let loop ([env env] [symbolic? #f])
@@ -678,7 +698,8 @@
           (set-defn-proto-rhs! a b)))
       (unify! expr a b)))
 
-(define (unify! expr a b)
+(define (unify! expr a b
+                #:function-call? [function-call? #f])
   (define (sub-unify! a b expr aa ba)
     (add-srcs! aa a)
     (add-srcs! ba b)
@@ -692,7 +713,7 @@
          [(eq? a b) (void)]
          [(tvar? a)
           (when (occurs? a b)
-            (raise-typecheck-error expr a b "cycle"))
+            (raise-typecheck-error expr a b "cycle in type constraints"))
           (if (tvar? b)
               (if (arrow-tvar? b)
                   (begin
@@ -707,12 +728,14 @@
                     (add-srcs! a b)))
               (if (and (arrow-tvar? a)
                        (not (arrow? b)))
-                  (raise-typecheck-error expr a b "trace procedure")
+                  (raise-typecheck-error expr a b "tracing requires a procedure")
                   (let ([b (clone b)])
                     (when (tvar-non-poly a)
                       (non-poly! b (tvar-non-poly a)))
                     (set-tvar-rep! a b)
                     (add-srcs! b a))))]
+         [(and function-call? (arrow? b) (not (arrow? a)))
+          (unify! expr b a #:function-call? #t)]
          [(bool? a)
           (unless (bool? b)
             (raise-typecheck-error expr a b))]
@@ -738,7 +761,7 @@
           (unless (and (arrow? b)
                        (= (length (arrow-args b))
                           (length (arrow-args a))))
-            (raise-typecheck-error expr a b))
+            (raise-typecheck-error expr a b #:function-call? function-call?))
           (for-each (lambda (aa ba) (sub-unify! a b expr aa ba)) 
                     (arrow-args a) (arrow-args b))
           (sub-unify! a b expr (arrow-result a) (arrow-result b))]

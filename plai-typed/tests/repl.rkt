@@ -37,7 +37,7 @@
 
 (tl "" '(define x (box empty)))
 (tl "" '(define y (box empty)))
-(te (regexp-quote "(listof (boxof (listof '_a))) vs (boxof (listof '_b))") '(cons x y))
+(te (regexp-quote "(listof (boxof (listof '_a))) vs. (boxof (listof '_b))") '(cons x y))
 
 ;; Should have no source inside plai-typed implementation:
 (te "^typecheck failed" '(cond [#t 4] [#f "string"]))
