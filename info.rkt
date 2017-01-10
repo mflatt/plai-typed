@@ -6,6 +6,6 @@
                "plai"))
 (define build-deps '("racket-doc"
                      "rackunit-lib"
-                     "scribble-lib"))
+                     ["scribble-lib" #:version "1.16"]))
 
 (define version "1.1")
