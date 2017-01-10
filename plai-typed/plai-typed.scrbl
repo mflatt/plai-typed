@@ -286,7 +286,7 @@ which is useful for producing multiple definitions from a macro.}
 An expression can be a literal constant that is a number (type
 @racket[number]), a string (type @racket[string]), a symbol (type
 @racket[symbol]) written with @racket[quote] or @litchar{'},
-an S-expression (type
+an @tech{S-expression} (type
 @racket[s-expression]) also written with @racket[quote] or @litchar{'},
 @racket[#t] (type @racket[boolean]), @racket[#f] (type
 @racket[boolean]), or a character (type @racket[char]). 
@@ -311,14 +311,14 @@ has type @racket[type].
                       (s-exp ...)])]{
 
 The @racket[quote] form produces a symbol when @racket[s-exp] is an
-identifier, otherwise it produces a literal S-expression.
+identifier, otherwise it produces a literal @tech{S-expression}.
 
 The @racket[quote] form is usually written as just a @litchar{'}
 before @racket[s-exp]; that is, @racket['@#,racket[s-exp]] and
 @racket[(@#,racket[quote] s-exp)] are equivalent.
 
 Note that @racket[(quasiquote @#,racket[_id])] or
-@racket[(@#,racket[quasiquote] _id)] produces a literal S-expression
+@racket[(@#,racket[quasiquote] _id)] produces a literal @tech{S-expression}
 with symbol content, as opposed to producing a value of type
 @racket[symbol].
 
@@ -343,7 +343,7 @@ with symbol content, as opposed to producing a value of type
 @defidform[unquote-splicing]
 )]{
 
-An S-expression that supports escapes via @racket[unquote] and
+An @tech{S-expression} that supports escapes via @racket[unquote] and
 @racket[unquote-splicing]. A @racket[(@#,racket[unquote] expr)] form
 is replaced with the value of @racket[expr], while a
 @racket[(@#,racket[unquote-splicing] expr)] form requires that
@@ -681,12 +681,54 @@ or an @racket[else] clause must be present.
          (try expr (lambda () handle-expr))]{
 
 Either returns @racket[expr]'s result or catches an exception raised
-by @racket[expr] and calls @racket[handle-expr].}
+by @racket[expr] and calls @racket[handle-expr].
+
+@examples[#:eval demo
+(try 1 (lambda () 2))
+(try (/ 1 0) (lambda () 2))
+(try (begin (error 'demo "oops") 1) (lambda () 2))
+(eval:error (try (begin (error 'demo "oops") 1) (lambda () (/ 2 0))))
+]}
+
+
+@deftogether[(
+@defform[(test expr expr)]
+@defform[(test/exn expr string-expr)]
+)]{
+
+The @racket[test] form checks whether the value of the first
+@racket[expr] matches the value of the second @racket[expr], and
+reports a test failure or success. The @racket[test/exn] form checks
+whether the @racket[expr] raises an exception whose error message
+includes the string produced by @racket[string-expr].
+
+The @racket[test] and @racket[test/exn] forms have type @racket[void],
+although they do not actually produce a void value; instead, they
+produce results suitable for automatic display through a top-level
+expression, and the @racket[void] type merely prevents your program
+from using the result.
+
+See also @racket[print-only-errors] and @racket[module+].}
+
+
+@defform[(time expr)]{
+
+Shows the time taken to evaluate @racket[expr] and returns the value
+of @racket[expr].}
+
+
+@defform[(let/cc id expr)]{
+
+Equivalent to @racket[(call/cc (lambda (id) expr))].}
 
 
 @; ----------------------------------------
 
 @section{Predefined Functions and Constants}
+
+
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{Booleans}
 
 @deftogether[(
 @defthing[true boolean]
@@ -695,31 +737,170 @@ by @racket[expr] and calls @racket[handle-expr].}
 
 Aliases for @racket[#t] and @racket[#f].}
 
+
+@defthing[not (boolean -> boolean)]{
+
+Boolean negation.
+
+@examples[#:eval demo
+(not true)]}
+
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{Lists}
+
 @deftogether[(
 @defthing[empty (listof 'a)]
+@defthing[empty? ((listof 'a) -> boolean)]
 @defthing[cons ('a (listof 'a) -> (listof 'a))]
+@defthing[cons? ((listof 'a) -> boolean)]
 @defthing[first ((listof 'a) -> 'a)]
 @defthing[rest ((listof 'a) -> (listof 'a))]
-@defthing[empty? ((listof 'a) -> boolean)]
-@defthing[cons? ((listof 'a) -> boolean)]
+)]{
+
+Essential list primitives: a list is either @racket[empty] or
+@racket[cons] of an item onto a list. The @racket[empty?] predicate
+recognizes the empty list, a @racket[cons] recognizes any other list.
+The @racket[first] and @racket[rest] functions select back out the two
+arguments to @racket[cons].
+
+@examples[#:eval demo
+empty
+(cons 1 empty)
+(first (cons 1 empty))
+(rest (cons 1 empty))
+(define my-list (cons 1 (cons 2 (cons 3 empty))))
+my-list
+(first my-list)
+(rest my-list)
+(first (rest my-list))
+(define also-my-list (list 1 2 3))
+also-my-list
+(rest also-my-list)
+]}
+
+
+@deftogether[(
 @defthing[second ((listof 'a) -> 'a)]
 @defthing[third ((listof 'a) -> 'a)]
 @defthing[fourth ((listof 'a) -> 'a)]
 @defthing[list-ref ((listof 'a) number -> 'a)]
-@defthing[length ((listof 'a) -> number)]
-@defthing[append ((listof 'a) (listof 'a) -> (listof 'a))]
-@defthing[reverse ((listof 'a) -> (listof 'a))]
-@defthing[member ('a (listof 'a) -> boolean)]
-@defthing[map (('a -> 'b) (listof 'a) -> (listof 'b))]
-@defthing[map2 (('a 'b -> 'c) (listof 'a) (listof 'b) -> (listof 'c))]
-@defthing[filter (('a -> boolean) (listof 'a) -> (listof 'a))]
+)]{
+
+Shorthands for accessing the @racket[first] of the @racket[rest] of a
+list, and so on. The second argument to @racket[list-ref] specifies
+the number of @racket[rest]s to use before a @racket[first], so it
+effectively counts list items from @racket[0].
+
+@examples[#:eval demo
+(define my-list (list 1 2 3))
+(second my-list)
+(list-ref my-list 2)
+]}
+
+
+@defthing[length ((listof 'a) -> number)]{
+
+Returns the number of items in a list.
+
+@examples[#:eval demo
+(define my-list (cons 1 (cons 2 (cons 3 empty))))
+(length my-list)
+]}
+
+@defthing[append ((listof 'a) (listof 'a) -> (listof 'a))]{
+
+Produces a list that has the items of the first given list followed by
+the items of the second given list.
+
+@examples[#:eval demo
+(define my-list (list 1 2 3))
+(define my-other-list (list 3 4 5))
+(append my-list my-other-list)
+(append my-other-list my-list)
+]}
+
+@defthing[reverse ((listof 'a) -> (listof 'a))]{
+
+Returns a list that has the same elements as the given one, but in
+reverse order.
+
+@examples[#:eval demo
+(reverse (list 1 2 3))]}
+
+
+@defthing[member ('a (listof 'a) -> boolean)]{
+
+Determines whether a value is an item in a list. Item are compared
+using @racket[equal?].
+
+@examples[#:eval demo
+(member 1 (list 1 2 3))
+(member 4 (list 1 2 3))]}
+
+
+@defthing[map (('a -> 'b) (listof 'a) -> (listof 'b))]{
+
+Applies a function in order to each element of a list and forms a new
+list with the results.
+
+@examples[#:eval demo
+(map add1 (list 1 2 3))
+(map to-string (list 1 2 3))]}
+
+
+@defthing[map2 (('a 'b -> 'c) (listof 'a) (listof 'b) -> (listof 'c))]{
+
+Applies a function in order to each pair of elements from two lists in
+``parallel,'' forming a new list with the results. An exception is
+raised if the two lists have different lengths.
+
+@examples[#:eval demo
+(map2 + (list 1 2 3) (list 3 4 5))]}
+
+
+@defthing[filter (('a -> boolean) (listof 'a) -> (listof 'a))]{
+
+Returns a list containing (in order) the items of a given list for
+which a given function returns true.
+
+@examples[#:eval demo
+(filter even? (list 1 2 3 4))
+(filter odd? (list 1 2 3 4))
+]}
+
+
+@deftogether[(
 @defthing[foldl (('a 'b -> 'b) 'b (listof 'a) -> 'b)]
 @defthing[foldr (('a 'b -> 'b) 'b (listof 'a) -> 'b)]
-@defthing[build-list (number (number -> 'a) -> (listof 'a))]
-)]{List primitives.}
+)]{
+
+Applies a function to an accumulated value and each element of a list,
+each time obtaining a new accumulated value. The second argument to
+@racket[foldl] or @racket[foldr] is the initial accumulated value, and
+it is provided as the first argument in each call to the given
+function. While @racket[foldl] applies the function or items in the
+list from from to last, @racket[foldr] applies the function or items
+in the list from last to first.
+
+@examples[#:eval demo
+(foldl + 10 (list 1 2 3))
+(foldl (lambda (n r) (cons (to-string n) r)) empty (list 1 2 3))
+(foldr (lambda (n r) (cons (to-string n) r)) empty (list 1 2 3))
+]}
+
+
+@defthing[build-list (number (number -> 'a) -> (listof 'a))]{
+
+Creates a list of items produced by calling a given function on
+numbers starting from @racket[0] a given number of times.
+
+@examples[#:eval demo
+(build-list 5 (lambda (v) (* v 10)))
+]}
  
 
-@defthing[not (boolean -> boolean)]{Boolean primitive.}
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{Numbers}
 
 @deftogether[(
 @defthing[+ (number number -> number)]
@@ -728,95 +909,298 @@ Aliases for @racket[#t] and @racket[#f].}
 @defthing[/ (number number -> number)]
 @defthing[modulo (number number -> number)]
 @defthing[remainder (number number -> number)]
-@defthing[= (number number -> boolean)]
-@defthing[> (number number -> boolean)]
-@defthing[< (number number -> boolean)]
-@defthing[>= (number number -> boolean)]
-@defthing[<= (number number -> boolean)]
 @defthing[min (number number -> number)]
 @defthing[max (number number -> number)]
 @defthing[floor (number -> number)]
 @defthing[ceiling (number -> number)]
 @defthing[add1 (number -> number)]
 @defthing[sub1 (number -> number)]
+)]{
+
+Standard arithmetic functions.
+
+@examples[#:eval demo
+(+ 1 2)
+(- 10 9)
+(/ 10 5)
+(modulo 10 3)
+(remainder 10 3)
+(min 1 2)
+(max 1 2)
+(floor 10.1)
+(ceiling 10.1)
+(ceiling 10.1)
+(add1 10)
+(sub1 10)
+]}
+
+@deftogether[(
+@defthing[= (number number -> boolean)]
+@defthing[> (number number -> boolean)]
+@defthing[< (number number -> boolean)]
+@defthing[>= (number number -> boolean)]
+@defthing[<= (number number -> boolean)]
 @defthing[zero? (number -> boolean)]
 @defthing[odd? (number -> boolean)]
 @defthing[even? (number -> boolean)]
-)]{Numeric primitives.}
+)]{
+
+Standard number comparisons and predicates.
+
+@examples[#:eval demo
+(= 1 1)
+(> 1 2)
+(< 1 2)
+(zero? 1)
+(odd? 1)
+(even? 1)
+]}
+
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{Symbols}
 
 @defthing[symbol=? (symbol symbol -> boolean)]{
-Symbol primitive.}
+
+Compares symbols
+
+@examples[#:eval demo
+(symbol=? 'apple 'apple)
+(symbol=? 'apple 'Apple)
+]}
+
+@deftogether[(
+@defthing[string->symbol (string -> symbol)]
+@defthing[symbol->string (symbol -> string)]
+)]{
+
+Converts between symbols and strings.
+
+@examples[#:eval demo
+(string->symbol "apple")
+(symbol->string 'apple)
+]}
+
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{Strings}
 
 @deftogether[(
 @defthing[string=? (string string -> boolean)]
 @defthing[string-append (string string -> string)]
-@defthing[to-string ('a -> string)]
-@defthing[string->symbol (string -> symbol)]
-@defthing[symbol->string (symbol -> string)]
-@defthing[string-ref (string number -> char)]
 @defthing[string-length (string -> number)]
 @defthing[substring (string number number -> string)]
-)]{String primitives.}
+@defthing[string-ref (string number -> char)]
+)]{
+
+Standard string primitives.
+
+@examples[#:eval demo
+(string=? "apple" "apple")
+(string-append "apple" "banana")
+(string-length "apple")
+(substring "apple" 1 3)
+(string-ref "apple" 0)
+]}
+
+
+@defthing[to-string ('a -> string)]{
+
+Converts any value to its printed form as a string.
+
+@examples[#:eval demo
+(to-string 1)
+(to-string 'two)
+(to-string "three")
+(to-string (list 1 2 3))
+(to-string '(1 two "three"))
+]}
+
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{Characters}
+
+@defthing[char=? (char char -> boolean)]{
+
+Compares characters.
+
+@examples[#:eval demo
+(char=? #\a #\b)
+]}
+
 
 @deftogether[(
-@defthing[char=? (char char -> boolean)]
 @defthing[string->list (string -> (listof char))]
 @defthing[list->string ((listof char) -> string)]
-)]{Character primitives.}
+)]{
+
+Converts between a string and a list of characters.
+
+@examples[#:eval demo
+(string->list "apple")
+(list->string (list #\a #\b #\c))
+]}
+
+
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{S-Expressions}
+
+A @deftech{S-expression} typically represents program text. For example,
+placing a @litchar{'} in from of any @racketmodname[plai-typed]
+expression (which is the same as wrapping it with @racket[quote])
+creates an S-expression that contains the identifiers (as symbols),
+parenthesization (as lists), and other constants as the expression
+text. Various @racket[plai-typed] values, including symbols, numbers,
+and lists, can be coerced to and from S-expression form.
+
+The representation of an S-expression is always the same as some other
+@racketmodname[plai-typed] value, so conversion to and from an
+S-expression is effectively a cast. For example, the
+@racket[s-exp-symbol?] function determines whether an S-expression is
+a symbol; in that case, @racket[s-exp->symbol] acts the identity
+function to produce the symbol, while any other value passed to
+@racket[s-exp->symbol] raises an exception. The @racket[symbol->s-exp]
+function similarly acts as the identity function to view a symbol as
+an S-expression.
+
+@(define-syntax-rule (converter what s-exp-X? s-exp->X X->s-exp)
+  @elem{
+   Checks whether an @tech{S-expression} corresponds to a single symbol
+   and casts it from or to such a form. If @racket[s-exp->X] is
+   given an S-expression for which @racket[s-exp-X?] returns false,
+   then @racket[s-exp->X] raises an exception.})
 
 @deftogether[(
 @defthing[s-exp-symbol? (s-expression -> boolean)]
 @defthing[s-exp->symbol (s-expression -> symbol)]
 @defthing[symbol->s-exp (symbol -> s-expression)]
+)]{
+
+@converter[@elem{a single symbol} s-exp-symbol? s-exp->symbol symbol->s-exp]
+
+@examples[#:eval demo
+(s-exp-symbol? `apple)
+(s-exp->symbol `apple)
+(eval:error (s-exp->symbol '1))
+(symbol->s-exp 'apple)
+]}
+
+@deftogether[(
 @defthing[s-exp-number? (s-expression -> boolean)]
 @defthing[s-exp->number (s-expression -> number)]
 @defthing[number->s-exp (number -> s-expression)]
+)]{
+
+@converter[@elem{a single number} s-exp-number? s-exp->number number->s-exp]
+
+@examples[#:eval demo
+(s-exp-number? '1)
+(s-exp->number '1)
+(number->s-exp 1)
+]}
+
+@deftogether[(
 @defthing[s-exp-string? (s-expression -> boolean)]
 @defthing[s-exp->string (s-expression -> string)]
 @defthing[string->s-exp (string -> s-expression)]
+)]{
+
+@converter[@elem{a single string} s-exp-string? s-exp->string string->s-exp]
+
+@examples[#:eval demo
+(s-exp-string? '"apple")
+(s-exp->string '"apple")
+(string->s-exp "apple")
+]}
+
+@deftogether[(
 @defthing[s-exp-boolean? (s-expression -> boolean)]
 @defthing[s-exp->boolean (s-expression -> boolean)]
 @defthing[boolean->s-exp (boolean -> s-expression)]
+)]{
+
+@converter[@elem{a single boolean} s-exp-boolean? s-exp->boolean boolean->s-exp]
+
+@examples[#:eval demo
+(s-exp-boolean? '#f)
+(s-exp->boolean '#f)
+(boolean->s-exp #f)
+(s-exp-boolean? `false)
+(s-exp-symbol? `false)
+]}
+
+@deftogether[(
 @defthing[s-exp-list? (s-expression -> boolean)]
 @defthing[s-exp->list (s-expression -> (listof s-expression))]
 @defthing[list->s-exp ((listof s-expression) -> s-expression)]
 )]{
-Coercion primitives to and from S-expressions.
 
-The @racket[s-exp-symbol?] function determines whether an S-expression
-is a symbol; in that case, @racket[s-exp->symbol] acts the identity
-function to produce the symbol, otherwise an exception is raised. The
-@racket[symbol->s-exp] function similarly acts as the identity
-function to view a symbol as an S-expression.
+@converter[@elem{an immediate list} s-exp-list? s-exp->list list->s-exp]
+A list produced by @racket[s-exp->list] always contains S-expression items.
 
-The other functions work similarly for numbers, strings, booleans, and
-lists of S-expressions.}
+@examples[#:eval demo
+(s-exp-list? '(1 2 3))
+(s-exp-list? '1)
+(s-exp->list '(1 2 3))
+(list->s-exp (list '1 '2 '3))
+(eval:error (list->s-exp (list 1 2 3)))
+]}
 
-@defthing[identity ('a -> 'a)]{Identity primitive.}
-
-@deftogether[(
-@defthing[equal? ('a 'a -> boolean)]
-@defthing[eq? ('a 'a -> boolean)]
-)]{Comparison primitives.}
-
-@defthing[error (symbol string -> 'a)]{Error primitive.}
-
-@defthing[display ('a -> void)]{Output primitive.}
-
-@defthing[read (-> s-expression)]{Input primitive.}
-
-@deftogether[(
-@defthing[box ('a -> (boxof 'a))]
-@defthing[unbox ((boxof 'a) -> 'a)]
-@defthing[set-box! ((boxof 'a) 'a -> void)]
-)]{Box primitives.}
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{Vector}
 
 @deftogether[(
 @defthing[make-vector (number 'a -> (vectorof 'a))]
 @defthing[vector-ref ((vectorof 'a) number -> 'a)]
 @defthing[vector-set! ((vectorof 'a) number 'a -> void)]
 @defthing[vector-length ((vectorof 'a) -> number)]
-)]{Vector primitives.}
+)]{
+
+A vector is similar to a list, but it support constant-time access to
+any item in the vector and does not support constant-time extension.
+In addition, vectors are mutable.
+
+The @racket[make-vector] function creates a vector of a given size and
+initializes all vector items to a given value. The @racket[vector-ref]
+function accesses the value in a vector slot, and @racket[vector-set!]
+changes the value in a slot. The @racket[vector-length] function
+reports the number of slots in the vector.
+
+@examples[#:eval demo
+(define vec (make-vector 10 "apple"))
+(vector-length vec)
+(vector-ref vec 5)
+(vector-set! vec 5 "banana")
+(vector-ref vec 5)
+(vector-ref vec 6)
+]}
+
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{Boxes}
+
+@deftogether[(
+@defthing[box ('a -> (boxof 'a))]
+@defthing[unbox ((boxof 'a) -> 'a)]
+@defthing[set-box! ((boxof 'a) 'a -> void)]
+)]{
+
+A box is like a vector with a single slot. Boxes are used primarily to
+allow mutation. For example, the value of a field in a variant
+instance cannot be modified, but the field's value can be a box, and
+then the box's content can be modified.
+
+The @racket[box] function creates a box with an initial value for its
+slot, @racket[unbox] accesses the current value in a box's slot, and
+@racket[set-box!] changes the value.
+
+@examples[#:eval demo
+(define b (box "apple"))
+(define b2 b)
+(unbox b)
+(set-box! b "banana")
+(unbox b)
+(unbox b2)
+]}
+
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{Tuples}
 
 @deftogether[(
 @defthing[pair ('a 'b -> ('a * 'b))]
@@ -824,29 +1208,19 @@ lists of S-expressions.}
 @defthing[snd (('a * 'b) -> 'b)]
 )]{
 
-Constructor and selectors for tuples containing two values.}
+Shorthands for two-element tuples: the @racket[pair] function creates
+a tuple, and the @racket[fst] and @racket[snd] functions access tuple
+items.
 
-@deftogether[(
-@defthing[make-parameter ('a -> (parameterof 'a))]
-@defthing[parameter-ref ((parameterof 'a) -> 'a)]
-@defthing[parameter-set! ((parameterof 'a) 'a -> void)]
-)]{Parameter primitives.}
+@examples[#:eval demo
+(define p (pair 1 "apple"))
+p
+(fst p)
+(snd p)
+]}
 
-@deftogether[(
-@defthing[make-hash ((listof ('a * 'b)) -> (hashof 'a 'b))]
-@defthing[hash ((listof ('a * 'b)) -> (hashof 'a 'b))]
-@defthing[hash-ref ((hashof 'a 'b) 'a -> (optionof 'b))]
-@defthing[hash-set! ((hashof 'a 'b) 'a 'b -> void)]
-@defthing[hash-remove! ((hashof 'a 'b) 'a -> void)]
-@defthing[hash-set ((hashof 'a 'b) 'a 'b -> (hashof 'a 'b))]
-@defthing[hash-remove ((hashof 'a 'b) 'a -> (hashof 'a 'b))]
-@defthing[hash-keys ((hashof 'a 'b) -> (listof 'a))]
-)]{Hash table primitives. The @racket[make-hash] function
-creates a mutable hash table for use with @racket[hash-set!]
-and @racket[hash-remove!], while the @racket[hash] function
-creates an immutable hash table for use with @racket[hash-set]
-and @racket[hash-remove]. The @racket[hash-ref] and @racket[hash-keys]
-functions work on both mutable and immutable hash tables.}
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{Optional Values}
 
 @deftogether[(
 @defthing[none (-> (optionof 'a))]
@@ -855,30 +1229,170 @@ functions work on both mutable and immutable hash tables.}
 @defthing[none? ((optionof 'a) -> bool)]
 @defthing[some? ((optionof 'a) -> bool)]
 )]{
-Option constructors, selector, and predicates. See @racket[optionof].}
+
+Defined as
+@racketblock[
+(define-type (optionof 'a)
+  [none]
+  [some (v : 'a)])
+]}
+
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{Hash Tables}
 
 @deftogether[(
-@defthing[call/cc ((('a -> 'b) -> 'a) -> 'a)]
-@defform[(let/cc id expr)]
+@defthing[make-hash ((listof ('a * 'b)) -> (hashof 'a 'b))]
+@defthing[hash ((listof ('a * 'b)) -> (hashof 'a 'b))]
+@defthing[hash-ref ((hashof 'a 'b) 'a -> (optionof 'b))]
 )]{
-Continuation primitive, where @racket[(let/cc id expr)] is equivalent
-to @racket[(call/cc (lambda (id) expr))].}
+
+The @racket[make-hash] function creates a mutable hash table that is
+initialized with a given mapping of keys to values (as a list of
+tuples pairing keys to values). The @racket[hash] function similarly
+creates an immutable hash table that supports constant-time functional
+update.
+
+The @racket[hash-ref] function works on either kind of hash table to
+find the value for a given key. If the hash table contains a mapping
+for a given key, @racket[hash-ref] returns the key's value wrapped
+with @racket[some]. Otherwise, @racket[hash-ref] returns
+@racket[(none)].
+
+@examples[#:eval demo
+(define m-ht (make-hash (list (pair 1 "apple") (pair 2 "banana"))))
+(define i-ht (hash (list (pair 1 "apple") (pair 2 "banana"))))
+(hash-ref m-ht 1)
+(hash-ref i-ht 1)
+(hash-ref m-ht 3)
+]}
 
 @deftogether[(
-@defform[(test expr expr)]
-@defform[(test/exn expr string-expr)]
-@defthing[print-only-errors (boolean -> void)]
+@defthing[hash-set! ((hashof 'a 'b) 'a 'b -> void)]
+@defthing[hash-remove! ((hashof 'a 'b) 'a -> void)]
 )]{
-Test primitive forms.  The @racket[test] and @racket[test/exn] forms
-have type @racket[void], although they do not actually produce a void
-value; instead, they produce results suitable for automatic display
-through a top-level expression, and the @racket[void] type merely
-prevents your program from using the result.
 
-See also @racket[module+].}
+Changes the mapping of a mutable hash table. The @racket[hash-set!]
+operation adds or changes the value for a given key, while
+@racket[hash-remove!] deletes the mapping (if any) of a given key.
 
-@defform[(time expr)]{
-Shows the time taken to evaluate @racket[expr].}
+Providing an immutable hash table triggers an exception.
+
+@examples[#:eval demo
+(define m-ht (make-hash (list (pair 1 "apple") (pair 2 "banana"))))
+(hash-ref m-ht 1)
+(hash-ref m-ht 3)
+(hash-set! m-ht 3 "coconut")
+(hash-set! m-ht 1 "Apple")
+(hash-ref m-ht 1)
+(hash-ref m-ht 3)
+]}
+
+@deftogether[(
+@defthing[hash-set ((hashof 'a 'b) 'a 'b -> (hashof 'a 'b))]
+@defthing[hash-remove ((hashof 'a 'b) 'a -> (hashof 'a 'b))]
+)]{
+
+Produces an immutable hash table that is like a given one, but with a
+mapping changed, added, or removed. The @racket[hash-set] operation
+adds or changes the value for a given key in the result hash table, while
+@racket[hash-remove] deletes the mapping (if any) of a given key
+in the result hash table.
+
+@examples[#:eval demo
+(define i-ht (hash (list (pair 1 "apple") (pair 2 "banana"))))
+(hash-ref i-ht 1)
+(define i-ht2 (hash-set (hash-set i-ht 1 "Apple")
+                        3 "coconut"))
+(hash-ref i-ht2 1)
+(hash-ref i-ht2 3)
+(hash-ref i-ht 3)
+]}
+
+@defthing[hash-keys ((hashof 'a 'b) -> (listof 'a))]{
+
+Returns the keys mapped by a hash table, which can be mutable or
+immutable.
+
+@examples[#:eval demo
+(define i-ht (hash (list (pair 1 "apple") (pair 2 "banana"))))
+(hash-keys i-ht)
+]}
+
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{Parameters}
+
+@deftogether[(
+@defthing[make-parameter ('a -> (parameterof 'a))]
+@defthing[parameter-ref ((parameterof 'a) -> 'a)]
+@defthing[parameter-set! ((parameterof 'a) 'a -> void)]
+)]{
+
+A parameter implements a kind dynamic binding. The
+@racket[make-parameter] function creates a fresh parameter,
+@racket[parameter-ref] accesses the parameter's current value, and
+@racket[parameter-set!] changes the parameter's current value (i.e.,
+at the nearest dynamic binding established with @racket[parameterize],
+if any).
+
+See also @racket[parameterize].}
+
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{Equality}
+
+@deftogether[(
+@defthing[equal? ('a 'a -> boolean)]
+)]{
+
+Compares two values for equality. Roughly, two values are
+@racket[equal?] when they print the same, but opaque values such as
+functions are @racket[equal?] only if they are @racket[eq?].
+
+@examples[#:eval demo
+(equal? "apple" "apple")
+(equal? (values 1 'two "three") (values 1 'two "three"))
+]}
+
+
+@defthing[eq? ('a 'a -> boolean)]{
+
+Checks whether two values are exactly the same value, which amounts to
+checking pointer equality. The @racket[eq?] function is well-defined
+on symbols (where it is equivalent to @racket[equal?]), mutable data
+structures (where pointer equality corresponds to shared mutation),
+and the result of a single expression (such as comparing a
+identifier's value to itself), but it should be avoided otherwise.
+
+@examples[#:eval demo
+(eq? 'apple 'apple)
+(let ([get-one (lambda () 1)])
+  (eq? get-one get-one))
+]}
+
+@; - - - - - - - - - - - - - - - - - - - - -
+@subsection{Other Functions}
+
+@defthing[identity ('a -> 'a)]{Identity primitive.}
+
+@defthing[error (symbol string -> 'a)]{Error primitive.}
+
+@defthing[display ('a -> void)]{Output primitive.}
+
+@defthing[read (-> s-expression)]{Input primitive.}
+
+@defthing[print-only-errors (boolean -> void)]{
+
+Enables or disables the printing of tests that pass. Tests that fail
+always cause printing.}
+
+@defthing[call/cc ((('a -> 'b) -> 'a) -> 'a)]{
+
+Passes the current continuation to the given function, and returns
+that function's result.
+
+The current continuation is itself represented as a function. Applying
+a continuation function discards the current continuation and replaces
+it with the called one, supplying the given value to that
+continuation.}
 
 @; ----------------------------------------
 
@@ -899,22 +1413,29 @@ The @racket[void] identifier also works as an expression of type
 
 @defform[#:id -> (type ... -> type)]{
 
-Types for functions.}
+Type for functions. Each @racket[type] before the @racket[->]
+corresponds to a function argument, and the @racket[type] after
+@racket[->] corresponds to a function result.}
 
 @defform/none[#:literals (*) (type * ...+)]{
 
-Types for @tech{tuples}.}
+Type for @tech{tuples}. Each @racket[*]-separated @racket[type] is
+the type of an element in the tuple.}
 
 @defform/none[()]{
 
 Type for the empty @tech{tuple}.}
 
 
-@defform[(listof type)]{Types for lists of elements.}
-@defform[(boxof type)]{Types for mutable boxes.}
-@defform[(vectorof type)]{Types for vectors of elements.}
-@defform[(parameterof type)]{Types for parameters.}
-@defform[(hashof type type)]{Types for hash tables.}
+@defform[(listof type)]{Type for lists of elements, where @racket[type] is the type of one element.}
+@defform[(boxof type)]{Type for mutable boxes, where @racket[type] is the type of the box's content.}
+@defform[(vectorof type)]{Type for vectors of elements, where @racket[type] is the type of one element.}
+@defform[(parameterof type)]{Type for parameters, where @racket[type] is the type of the parameter's value.}
+
+@defform[(hashof type type)]{
+
+Type for hash tables, where the first @racket[type] corresponds to
+keys and the second @racket[type] correspond to values.}
 
 @defform[(optionof type)]{Defined as
 @racketblock[
@@ -934,9 +1455,9 @@ and used, for example, for the result of @racket[hash-ref].}
 @defidform[:]
 )]{
 
-Syntactic literals for use in declarations such as @racket[define] and
-@racket[require]; see @racket[define] and @racket[require] for more
-information.}
+Syntactic literals are for use in declarations such as @racket[define]
+and @racket[require]; see @racket[define] and @racket[require] for
+more information.}
 
 @; ----------------------------------------
 
