@@ -1,3 +1,3 @@
 #lang setup/infotab
 
-(define scribblings '(("plai-typed.scrbl" () (language))))
+(define scribblings '(("plai-typed.scrbl" (multi-page) (language))))

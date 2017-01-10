@@ -2768,6 +2768,7 @@
          (set! tl-opaques o2)
          (set! tl-aliases a2)
          (set! tl-env e2)
+         (set! tl-variants vars)
          (set! tl-submods subs)
          (with-syntax ([ty ((type->datum (make-hasheq)) (car tys))]
                        [body expanded-body])
