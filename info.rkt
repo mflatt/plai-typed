@@ -8,4 +8,4 @@
                      "rackunit-lib"
                      ["scribble-lib" #:version "1.16"]))
 
-(define version "1.1")
+(define version "1.2")
