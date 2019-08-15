@@ -1281,6 +1281,12 @@
 
 (define-for-syntax (typecheck-defns tl datatypes opaques aliases init-env init-variants just-id? 
                                     poly-context orig-let-polys submods)
+  ;; The `base-tvars` is a mapping from type names to type variables
+  ;; for type variables written in the source. Since we have to infer
+  ;; where type variables are bound, at each binding layer we create a
+  ;; fresh box to represent that layer and mutate the box to add
+  ;; variables that haven't been seen before, so they're apparently
+  ;; bound at the layer represented by the box.
   (let* ([poly-context (cons (gensym) poly-context)]
          [datatypes (append (filter
                              values

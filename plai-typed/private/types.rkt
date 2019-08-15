@@ -19,8 +19,39 @@
 
 (define-struct type ([src #:mutable]))
 
+;; The `non-poly` field controls the layer where a type variable can
+;; be generalized by let polyporphism. This is necessary because we
+;; delay let-based polymorphism to the end of checking a whole module,
+;; which allows inferring types of recursive functions (at the expense
+;; of potentially looping in the type checker, although it doesn't
+;; happen in practice). The `non-poly` field is a list of gensyms that
+;; correspods to the `poly-context` field of a `defn`, or it is #f to
+;; mean "extension of any poly context". A type variable can be
+;; generalized only for a definition whose context is shorter than
+;; `non-poly`. Unification finds the common tail of unified type
+;; variables.
+;;
+;; For example, in
+;;
+;;   (define (f x)
+;;     (let ([y x])
+;;       y)))
+;;
+;; the type for `y` should not instantiate a fresh type variable for
+;; `x`, which would break the connection between the type and argument.
+;; On the ohter hand, in
+;;
+;;  (let ([f (lambda (x) x)])
+;;    (let ([g f])
+;;      (values (g 1) (g #t))))
+;;
+;; the type for `f` should not be monomorphized for `g`, because it can
+;; stay polymorphic. The `non-poly` tracking effectively allows the
+;; polymorphism of `f` to propagate to uses of `g` without losing the connection
+;; between `x` and `y` in the earlier example.
+
 (define-struct (tvar type) ([rep #:mutable] [non-poly #:mutable]) #:transparent)
-(define-struct (arrow-tvar tvar) ()) ; must unify with arrow
+(define-struct (arrow-tvar tvar) ()) ; must unify with arrow, which helps improve error messages
 (define-struct (bool type) ())
 (define-struct (num type) ())
 (define-struct (sym type) ())
@@ -38,6 +69,14 @@
 (define-struct (datatype type) (id args))
 (define-struct (opaque-datatype datatype) (pred))
 (define-struct (poly type) (tvar type) #:transparent)
+
+;; A `defn` is a type for a variable bound by `define`. It's meant to
+;; support generalization to a polymorphic type, but that
+;; generalization requires some care in a recursive-binding setting.
+;; The `poly-context` field is a list of gensyms that reflect the
+;; definition's nesting --- one gensym for every enclosing binding
+;; context. That way, generalization can recognize deeper and
+;; shallower bindings.
 (define-struct (defn type) (base rhs poly-context [insts #:mutable] [proto-rhs #:mutable]) #:transparent)
 
 (define (to-contract type enforce-poly?)
@@ -693,6 +732,7 @@
 (define (unify-defn! expr a b)
   (if (defn? a)
       (let ([pi (poly-instance (defn-base a))])
+        (non-poly! b (cons (gensym) (defn-poly-context a)))
         (unify! expr pi b)
         (unless (defn-rhs a) 
           (set-defn-proto-rhs! a b)))
