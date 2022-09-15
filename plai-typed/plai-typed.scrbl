@@ -883,7 +883,7 @@ each time obtaining a new accumulated value. The second argument to
 @racket[foldl] or @racket[foldr] is the initial accumulated value, and
 it is provided as the first argument in each call to the given
 function. While @racket[foldl] applies the function or items in the
-list from from to last, @racket[foldr] applies the function or items
+list from first to last, @racket[foldr] applies the function or items
 in the list from last to first.
 
 @examples[#:eval demo
